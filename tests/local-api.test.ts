@@ -46,6 +46,22 @@ async function waitForTracking(url: string, trackingCode: string) {
   throw new Error(`Inquiry did not replicate to ${url}`);
 }
 
+async function waitForOutboxState(
+  db: ApiResource["db"],
+  inquiryId: string,
+  peerNodeId: string,
+  condition: (row: { attemptCount: number } | undefined) => boolean,
+  expectedState: string,
+): Promise<{ attemptCount: number } | undefined> {
+  const find = db.prepare("SELECT attempt_count AS attemptCount FROM sync_outbox WHERE inquiry_id=? AND peer_node_id=?");
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const row = find.get(inquiryId, peerNodeId) as { attemptCount: number } | undefined;
+    if (condition(row)) return row;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Outbox did not reach ${expectedState} for ${inquiryId} -> ${peerNodeId}`);
+}
+
 test("local health, catalog, create, and tracking match the shared API contract", async () => {
   const api = await boot();
   try {
@@ -77,6 +93,59 @@ test("sync is disabled by default and peer writes require the bearer secret", as
     const denied = await fetch(`${enabled.url}/api/v1/sync/inquiries`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     assert.equal(denied.status, 401);
   } finally { await cleanup(enabled); }
+});
+
+test("persistent outbox resumes delivery after the peer returns and the node restarts", async () => {
+  const sourcePort = await freePort();
+  const targetPort = await freePort();
+  const peerNodeId = "desktop-recovery-target";
+  const source = await boot({
+    nodeId: "desktop-recovery-source",
+    port: sourcePort,
+    sharedSecret: secret,
+    peers: [{ nodeId: peerNodeId, url: `http://127.0.0.1:${targetPort}` }],
+  });
+  let sourceClosed = false;
+  let target: ApiResource | undefined;
+  let restarted: ApiResource | undefined;
+  try {
+    const createdResponse = await fetch(`${source.url}/api/v1/inquiries`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ customerName: "Recovery Client", customerEmail: "recovery@example.test", destinationCountry: "Japan", productId: "green-coffee", quantity: 5 }),
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = await createdResponse.json() as { trackingCode: string };
+    const sourceRecord = source.db.prepare("SELECT id FROM inquiries WHERE tracking_code=?").get(created.trackingCode) as { id: string } | undefined;
+    assert(sourceRecord);
+    const failedAttempt = await waitForOutboxState(source.db, sourceRecord.id, peerNodeId, (row) => (row?.attemptCount ?? 0) >= 1, "a persisted failed attempt");
+    assert.ok((failedAttempt?.attemptCount ?? 0) >= 1);
+
+    await source.close();
+    sourceClosed = true;
+    const sourceIndex = active.indexOf(source);
+    if (sourceIndex >= 0) active.splice(sourceIndex, 1);
+
+    target = await boot({ nodeId: peerNodeId, port: targetPort, sharedSecret: secret });
+    const restartedInstance = await startLocalApi({
+      dbPath: path.join(source.dir, "db.sqlite"),
+      port: sourcePort,
+      host: "127.0.0.1",
+      nodeId: "desktop-recovery-source",
+      sharedSecret: secret,
+      peers: [{ nodeId: peerNodeId, url: `http://127.0.0.1:${targetPort}` }],
+    });
+    restarted = { ...restartedInstance, dir: source.dir };
+    active.push(restarted);
+    const replicated = await waitForTracking(target.url, created.trackingCode);
+    assert.equal(replicated.data.productName, "Kopi Arabika hijau");
+    await waitForOutboxState(restarted.db, sourceRecord.id, peerNodeId, (row) => !row, "successful delivery and outbox removal");
+  } finally {
+    if (restarted) await cleanup(restarted);
+    if (target) await cleanup(target);
+    if (!sourceClosed) await cleanup(source);
+    else if (!restarted) await rm(source.dir, { recursive: true, force: true });
+  }
 });
 
 test("peer replication is idempotent; conflicting payload is quarantined without overwrite", async () => {
