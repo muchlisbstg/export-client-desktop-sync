@@ -115,6 +115,14 @@ test("peer replication is idempotent; conflicting payload is quarantined without
     const conflicts = nodeB.db.prepare("SELECT COUNT(*) AS count FROM sync_conflicts WHERE inquiry_id=?").get(record.id) as { count: number };
     assert.equal(stored?.customer_name, "Original Client");
     assert.equal(conflicts.count, 1);
+    const collisionId = "33333333-3333-4333-8333-333333333333";
+    const codeCollision = await send({ ...record, id: collisionId, customerName: "Tracking Code Collision" });
+    assert.equal(codeCollision.status, 409);
+    assert.equal((await codeCollision.json() as { error: string }).error, "sync_conflict");
+    const collision = nodeB.db.prepare("SELECT reason FROM sync_conflicts WHERE inquiry_id=?").get(collisionId) as { reason: string } | undefined;
+    assert.equal(collision?.reason, "tracking_code_collision");
+    const preserved = nodeB.db.prepare("SELECT customer_name FROM inquiries WHERE id=?").get(record.id) as { customer_name: string } | undefined;
+    assert.equal(preserved?.customer_name, "Original Client");
   } finally { await cleanup(nodeA); await cleanup(nodeB); }
 });
 
