@@ -25,7 +25,7 @@ import type { InquiryStatus, Product } from "./shared/api-types";
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
 
-const defaultApiUrl = "http://localhost:4000";
+const defaultApiUrl = "http://127.0.0.1:4002";
 const apiUrlStorageKey = "export-client-api-url";
 const initialForm = {
   customerName: "",
@@ -126,7 +126,7 @@ export default function App() {
       setTrackingCode(result.trackingCode);
       setTrackingInput(result.trackingCode);
       setForm((current) => ({ ...initialForm, productId: current.productId }));
-      setNotice("Permintaan tersimpan pada API bersama.");
+      setNotice("Permintaan tersimpan pada backend yang terhubung.");
     } catch (caught) {
       setError(messageFrom(caught, "Permintaan gagal dikirim."));
     } finally {
@@ -174,10 +174,10 @@ export default function App() {
   }
 
   const pageTitles: Record<Page, { eyebrow: string; title: string; description: string }> = {
-    overview: { eyebrow: "RUANG KERJA", title: "Ringkasan", description: "Satu ruang kerja untuk permintaan ekspor yang tersambung ke web dan mobile." },
-    request: { eyebrow: "PERMINTAAN BARU", title: "Ajukan penawaran", description: "Kirim permintaan melalui API bersama dan lanjutkan pelacakan dari perangkat mana pun." },
+    overview: { eyebrow: "RUANG KERJA", title: "Ringkasan", description: "Desktop menyimpan data di backend lokal; sinkronkan dengan web dan mobile melalui peer sync." },
+    request: { eyebrow: "PERMINTAAN BARU", title: "Ajukan penawaran", description: "Kirim ke backend yang terhubung. Kode dapat digunakan pada node lain yang sudah tersinkron." },
     track: { eyebrow: "STATUS PERMINTAAN", title: "Lacak permintaan", description: "Gunakan kode pelacakan dari aplikasi web, mobile, atau desktop." },
-    settings: { eyebrow: "PREFERENSI KLIEN", title: "Pengaturan koneksi", description: "Pilih alamat API bersama yang dipakai ketiga aplikasi." },
+    settings: { eyebrow: "PREFERENSI KLIEN", title: "Pengaturan koneksi", description: "Ubah API desktop. Default-nya backend lokal di 127.0.0.1:4002." },
   };
   const currentTitle = pageTitles[page];
 

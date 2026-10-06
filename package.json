@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "out/main/main.js",
-  "description": "Desktop client for the shared Export Client API",
+  "description": "Full-stack desktop app with a local SQLite API and optional peer sync",
   "engines": {
     "node": ">=22"
   },
@@ -13,16 +13,22 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/api-client.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "package:dir": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

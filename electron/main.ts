@@ -1,8 +1,10 @@
+import "dotenv/config";
 import { app, BrowserWindow, clipboard, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiClient } from "../src/shared/api-client";
 import type { CreateInquiryInput } from "../src/shared/api-types";
+import { startLocalApi, parsePeers } from "./local-api";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -84,9 +86,27 @@ function createWindow() {
   }
 }
 
+let localApi: Awaited<ReturnType<typeof startLocalApi>> | undefined;
+
 app.whenReady().then(() => {
   registerIpcHandlers();
-  createWindow();
+  const nodeId = process.env.SYNC_NODE_ID?.trim() || "desktop-local";
+  let peers = [] as ReturnType<typeof parsePeers>;
+  let sharedSecret = process.env.SYNC_SHARED_SECRET || "";
+  try {
+    peers = parsePeers(process.env.SYNC_PEERS || "", nodeId);
+  } catch (error) {
+    console.error("Invalid peer sync configuration; synchronization is disabled.", error);
+    sharedSecret = "";
+  }
+  void startLocalApi({
+    dbPath: path.join(app.getPath("userData"), "inquiries.sqlite"),
+    port: Number(process.env.API_PORT || 4002),
+    host: process.env.API_HOST || "127.0.0.1",
+    nodeId,
+    sharedSecret,
+    peers,
+  }).then((server) => { localApi = server; createWindow(); }).catch((error) => { console.error("Local API failed to start", error); createWindow(); });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -96,3 +116,5 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+app.on("before-quit", () => { void localApi?.close(); });
