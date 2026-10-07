@@ -294,6 +294,12 @@ test("peer replication is idempotent; conflicting payload is quarantined without
   } finally { await cleanup(nodeA); await cleanup(nodeB); }
 });
 
+test("HTTP IPv6 loopback peers are accepted for local development", () => {
+  assert.deepEqual(parsePeers("web=http://[::1]:4000", "desktop-local"), [
+    { nodeId: "web", url: "http://[::1]:4000" },
+  ]);
+});
+
 test("peer URL validation rejects public HTTP, credentials, self, and duplicate IDs", () => {
   assert.throws(() => parsePeers("web=http://example.com:4000", "desktop-local"), /HTTPS/);
   assert.throws(() => parsePeers("web=https://user:pass@example.com", "desktop-local"), /credentials/);
