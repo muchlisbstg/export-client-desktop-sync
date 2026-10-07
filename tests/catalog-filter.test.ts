@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getCategories } from "../src/shared/catalog-filter";
+import { filterProducts, getCategories, sortProducts } from "../src/shared/catalog-filter";
 import type { Product } from "../src/shared/api-types";
 
 const products: Product[] = [
@@ -59,4 +59,28 @@ test("filter tidak mengubah array sumber maupun item", () => {
   const snapshot = structuredClone(source);
   filterProducts(source, "kakao", "Kakao");
   assert.deepEqual(source, snapshot);
+});
+
+const sortableProducts: Product[] = [
+  { id: "zulu", name: "Zebra", category: "Rempah", origin: "Zambia", unit: "kg" },
+  { id: "name-two-a", name: "Produk 2", category: "Minuman", origin: "Bali", unit: "bag" },
+  { id: "name-two-b", name: "Produk 2", category: "Minuman", origin: "Bali", unit: "box" },
+  { id: "name-ten", name: "Produk 10", category: "Bahan", origin: "Jakarta", unit: "g" },
+];
+
+test("local sorting supports each existing catalog field with Indonesian natural ordering", () => {
+  assert.deepEqual(ids(sortProducts(sortableProducts, "name")), ["name-two-a", "name-two-b", "name-ten", "zulu"]);
+  assert.deepEqual(ids(sortProducts(sortableProducts, "category")), ["name-ten", "name-two-a", "name-two-b", "zulu"]);
+  assert.deepEqual(ids(sortProducts(sortableProducts, "origin")), ["name-two-a", "name-two-b", "name-ten", "zulu"]);
+  assert.deepEqual(ids(sortProducts(sortableProducts, "unit")), ["name-two-a", "name-two-b", "name-ten", "zulu"]);
+});
+
+test("descending sorting is stable for ties and sorting a filtered list leaves source order unchanged", () => {
+  const originalOrder = ids(sortableProducts);
+  assert.deepEqual(ids(sortProducts(sortableProducts, "name", "desc")), ["zulu", "name-ten", "name-two-a", "name-two-b"]);
+  const filteredSorted = sortProducts(filterProducts(sortableProducts, "produk"), "name", "desc");
+  assert.deepEqual(ids(filteredSorted), ["name-ten", "name-two-a", "name-two-b"]);
+  assert.deepEqual(ids(sortProducts(sortableProducts, "default")), originalOrder);
+  assert.notStrictEqual(sortProducts(sortableProducts, "default"), sortableProducts);
+  assert.deepEqual(ids(sortableProducts), originalOrder);
 });
