@@ -15,19 +15,19 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout desktop repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: .ci/desktop
           persist-credentials: false
       - name: Checkout web backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: muchlisbstg/export-client-web-sync
           ref: main
           path: .ci/web
           persist-credentials: false
       - name: Checkout mobile backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: muchlisbstg/export-client-mobile-sync
           ref: main
@@ -61,7 +61,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
