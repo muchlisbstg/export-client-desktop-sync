@@ -58,6 +58,8 @@ npm run package:dir # paket direktori aplikasi untuk host saat ini
 npm run dist        # buat installer/artifact default host saat ini
 ```
 
+CI Desktop juga menjalankan tes interoperabilitas terhadap backend Web dan Mobile. Untuk langkah menjalankan harness tiga repo secara lokal dan rincian cakupan konflik/replay, lihat [runbook pengujian interoperabilitas](https://github.com/muchlisbstg/export-client-web-sync/blob/main/docs/interop-testing.md); tes memakai data sintetis serta SQLite sementara dan tidak melakukan deployment.
+
 Untuk menghasilkan installer platform tertentu, gunakan runner yang sesuai dengan platform target (Windows, macOS, atau Linux) dan konfigurasi Electron Builder.
 
 ## Status, privasi, dan batasan
