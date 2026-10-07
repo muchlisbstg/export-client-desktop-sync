@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -21,6 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
+import { filterProducts, getCategories } from "./shared/catalog-filter";
 
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
@@ -68,6 +69,9 @@ export default function App() {
   const [connection, setConnection] = useState<Connection>("checking");
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("");
+  const catalogSearchRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [trackingCode, setTrackingCode] = useState("");
@@ -277,15 +281,42 @@ export default function App() {
 
               <section className="section-block">
                 <div className="section-heading"><div><p className="eyebrow">01 — KATALOG BERSAMA</p><h2>Produk pilihan</h2></div><span className="section-side-note">Sumber katalog: API bersama <span className="tiny-dot" /></span></div>
-                {loadingProducts ? <div className="empty-state"><LoaderCircle className="spin" size={20} /> Memuat katalog…</div> : products.length === 0 ? <div className="empty-state">Belum ada produk di katalog. Periksa koneksi API.</div> : (
-                  <div className="product-grid">
-                    {products.map((product, index) => <button className="product-card" key={product.id} type="button" onClick={() => { setForm((current) => ({ ...current, productId: product.id })); goTo("request"); }}>
-                      <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin">{product.origin}</span><span className="product-orbit" /></span>
-                      <span className="product-info"><small>{product.category}</small><strong>{product.name}</strong><span>Asal {product.origin}<i>·</i> per {product.unit}</span></span>
-                      <span className="product-arrow"><ArrowUpRight size={15} /></span>
-                    </button>)}
-                  </div>
-                )}
+                {loadingProducts ? <div className="empty-state"><LoaderCircle className="spin" size={20} /> Memuat katalog…</div> : products.length === 0 ? <div className="empty-state">Belum ada produk di katalog. Periksa koneksi API.</div> : (() => {
+                  const categories = getCategories(products);
+                  const visibleProducts = filterProducts(products, catalogQuery, catalogCategory);
+                  const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "");
+                  return (
+                    <>
+                      <div className="catalog-controls" aria-label="Filter katalog">
+                        <div className="catalog-search-wrap">
+                          <label htmlFor="catalog-search">Cari nama, kategori, atau asal</label>
+                          <div className="catalog-search-row">
+                            <input ref={catalogSearchRef} id="catalog-search" type="search" value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Contoh: kopi atau Indonesia" />
+                            {catalogQuery && <button className="catalog-clear" type="button" onClick={() => { setCatalogQuery(""); catalogSearchRef.current?.focus(); }} aria-label="Bersihkan pencarian">×</button>}
+                          </div>
+                        </div>
+                        <div className="catalog-filter-group" aria-label="Kategori produk">
+                          <span className="catalog-filter-label">Kategori</span>
+                          <div className="catalog-chips">
+                          <button className={`catalog-chip${catalogCategory === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogCategory === ""} onClick={() => setCatalogCategory("")}>Semua</button>
+                            {categories.map((category) => <button className={`catalog-chip${catalogCategory === category ? " is-selected" : ""}`} key={category} type="button" aria-pressed={catalogCategory === category} onClick={() => setCatalogCategory(category)}>{category}</button>)}
+                          </div>
+                        </div>
+                        {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
+                      </div>
+                      <div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div>
+                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
+                        <div className="product-grid">
+                          {visibleProducts.map((product, index) => <button className="product-card" key={product.id} type="button" onClick={() => { setForm((current) => ({ ...current, productId: product.id })); goTo("request"); }}>
+                            <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin">{product.origin}</span><span className="product-orbit" /></span>
+                            <span className="product-info"><small>{product.category}</small><strong>{product.name}</strong><span>Asal {product.origin}<i>·</i> per {product.unit}</span></span>
+                            <span className="product-arrow"><ArrowUpRight size={15} /></span>
+                          </button>)}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </section>
 
               <section className="integration-strip">
