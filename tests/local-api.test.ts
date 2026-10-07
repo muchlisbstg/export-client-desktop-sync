@@ -148,6 +148,66 @@ test("persistent outbox resumes delivery after the peer returns and the node res
   }
 });
 
+test("three-node sync forwards inquiries transitively and stops duplicate echoes", async () => {
+  const portA = await freePort();
+  const portB = await freePort();
+  const portC = await freePort();
+  const nodeA = await boot({
+    nodeId: "desktop-hop-a",
+    port: portA,
+    sharedSecret: secret,
+    peers: [{ nodeId: "desktop-hop-b", url: `http://127.0.0.1:${portB}` }],
+  });
+  const nodeB = await boot({
+    nodeId: "desktop-hop-b",
+    port: portB,
+    sharedSecret: secret,
+    peers: [
+      { nodeId: "desktop-hop-a", url: `http://127.0.0.1:${portA}` },
+      { nodeId: "desktop-hop-c", url: `http://127.0.0.1:${portC}` },
+    ],
+  });
+  const nodeC = await boot({
+    nodeId: "desktop-hop-c",
+    port: portC,
+    sharedSecret: secret,
+    peers: [{ nodeId: "desktop-hop-b", url: `http://127.0.0.1:${portB}` }],
+  });
+
+  try {
+    const createdResponse = await fetch(`${nodeA.url}/api/v1/inquiries`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ customerName: "Three Node Client", customerEmail: "three-node@example.test", destinationCountry: "Japan", productId: "green-coffee", quantity: 8 }),
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = await createdResponse.json() as { trackingCode: string };
+    const sourceRecord = nodeA.db.prepare("SELECT id FROM inquiries WHERE tracking_code=?").get(created.trackingCode) as { id: string } | undefined;
+    assert(sourceRecord);
+
+    const atB = await waitForTracking(nodeB.url, created.trackingCode);
+    const atC = await waitForTracking(nodeC.url, created.trackingCode);
+    assert.equal(atB.data.productName, "Kopi Arabika hijau");
+    assert.equal(atC.data.productName, "Kopi Arabika hijau");
+
+    await waitForOutboxState(nodeA.db, sourceRecord.id, "desktop-hop-b", (row) => !row, "delivery to middle peer");
+    await waitForOutboxState(nodeB.db, sourceRecord.id, "desktop-hop-c", (row) => !row, "forwarding to final peer");
+    await waitForOutboxState(nodeC.db, sourceRecord.id, "desktop-hop-b", (row) => !row, "duplicate echo acknowledgement");
+
+    for (const [label, node] of [["A", nodeA], ["B", nodeB], ["C", nodeC]] as const) {
+      const stored = node.db.prepare("SELECT COUNT(*) AS count, MIN(origin_node_id) AS originNodeId FROM inquiries WHERE id=?").get(sourceRecord.id) as { count: number; originNodeId: string };
+      assert.equal(stored.count, 1, `node ${label} must store exactly one copy`);
+      assert.equal(stored.originNodeId, "desktop-hop-a", `node ${label} must preserve the origin node ID`);
+      const outbox = node.db.prepare("SELECT COUNT(*) AS count FROM sync_outbox WHERE inquiry_id=?").get(sourceRecord.id) as { count: number };
+      const conflicts = node.db.prepare("SELECT COUNT(*) AS count FROM sync_conflicts WHERE inquiry_id=?").get(sourceRecord.id) as { count: number };
+      assert.equal(outbox.count, 0, `node ${label} outbox must drain`);
+      assert.equal(conflicts.count, 0, `node ${label} must not record a conflict`);
+    }
+  } finally {
+    await Promise.all([cleanup(nodeA), cleanup(nodeB), cleanup(nodeC)]);
+  }
+});
+
 test("peer replication is idempotent; conflicting payload is quarantined without overwrite", async () => {
   const portA = await freePort();
   const portB = await freePort();
