@@ -113,6 +113,27 @@ test("sync is disabled by default and peer writes require the bearer secret", as
   } finally { await cleanup(enabled); }
 });
 
+test("outbound replication waits for both a secret and a configured peer", async () => {
+  const peerPort = await freePort();
+  const partialConfigurations = [
+    { nodeId: "desktop-secret-only", sharedSecret: secret },
+    { nodeId: "desktop-peers-only", peers: [{ nodeId: "desktop-target", url: `http://127.0.0.1:${peerPort}` }] },
+  ];
+
+  for (const options of partialConfigurations) {
+    const api = await boot(options);
+    try {
+      const created = await fetch(`${api.url}/api/v1/inquiries`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ customerName: "Partial Config Client", customerEmail: "partial@example.com", destinationCountry: "Japan", productId: "green-coffee", quantity: 50 }),
+      });
+      assert.equal(created.status, 201);
+      const { count } = api.db.prepare("SELECT COUNT(*) AS count FROM sync_outbox").get() as { count: number };
+      assert.equal(count, 0, `${options.nodeId} must not queue outbound sync with partial configuration`);
+    } finally { await cleanup(api); }
+  }
+});
+
 test("persistent outbox resumes delivery after the peer returns and the node restarts", async () => {
   const sourcePort = await freePort();
   const targetPort = await freePort();
