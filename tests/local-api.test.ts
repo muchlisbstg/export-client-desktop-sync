@@ -81,6 +81,24 @@ test("local health, catalog, create, and tracking match the shared API contract"
   } finally { await cleanup(api); }
 });
 
+test("JSON parser errors use stable 400 and 413 responses", async () => {
+  const api = await boot();
+  try {
+    const malformed = await fetch(`${api.url}/api/v1/inquiries`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: '{"customerName":',
+    });
+    assert.equal(malformed.status, 400);
+    assert.deepEqual(await malformed.json(), { error: "invalid_json" });
+
+    const oversized = await fetch(`${api.url}/api/v1/inquiries`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ padding: "x".repeat(17 * 1024) }),
+    });
+    assert.equal(oversized.status, 413);
+    assert.deepEqual(await oversized.json(), { error: "payload_too_large" });
+  } finally { await cleanup(api); }
+});
+
 test("sync is disabled by default and peer writes require the bearer secret", async () => {
   const disabled = await boot();
   try {
