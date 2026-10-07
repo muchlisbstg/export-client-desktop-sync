@@ -293,7 +293,9 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
     return res.json({ data: result });
   });
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (error instanceof SyntaxError) return res.status(400).json({ error: "invalid_json" });
+    const parserError = error as { type?: unknown } | null;
+    if (parserError?.type === "entity.parse.failed") return res.status(400).json({ error: "invalid_json" });
+    if (parserError?.type === "entity.too.large") return res.status(413).json({ error: "payload_too_large" });
     return res.status(500).json({ error: "internal_server_error" });
   });
 
