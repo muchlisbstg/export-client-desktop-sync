@@ -283,7 +283,12 @@ export default function App() {
 
               <section className="section-block">
                 <div className="section-heading"><div><p className="eyebrow">01 — KATALOG BERSAMA</p><h2>Produk pilihan</h2></div><span className="section-side-note">Sumber katalog: API bersama <span className="tiny-dot" /></span></div>
-                {loadingProducts ? <div className="empty-state"><LoaderCircle className="spin" size={20} /> Memuat katalog…</div> : products.length === 0 ? <div className="empty-state">Belum ada produk di katalog. Periksa koneksi API.</div> : (() => {
+                {loadingProducts ? <div className="empty-state"><LoaderCircle className="spin" size={20} /> Memuat katalog…</div> : products.length === 0 ? connection === "offline" ? (
+                  <div className="catalog-load-error" role="status">
+                    <div><strong>Katalog belum dapat dimuat</strong><p>Periksa koneksi API lalu coba lagi.</p></div>
+                    <button type="button" onClick={() => void refresh()}>Coba lagi</button>
+                  </div>
+                ) : <div className="empty-state">Belum ada produk di katalog.</div> : (() => {
                   const categories = getCategories(products);
                   const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory), catalogSortField, catalogSortDirection);
                   const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "");
