@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
-import { filterProducts, getCategories } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getCategories, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
@@ -71,6 +71,8 @@ export default function App() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>("default");
+  const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
@@ -283,7 +285,7 @@ export default function App() {
                 <div className="section-heading"><div><p className="eyebrow">01 — KATALOG BERSAMA</p><h2>Produk pilihan</h2></div><span className="section-side-note">Sumber katalog: API bersama <span className="tiny-dot" /></span></div>
                 {loadingProducts ? <div className="empty-state"><LoaderCircle className="spin" size={20} /> Memuat katalog…</div> : products.length === 0 ? <div className="empty-state">Belum ada produk di katalog. Periksa koneksi API.</div> : (() => {
                   const categories = getCategories(products);
-                  const visibleProducts = filterProducts(products, catalogQuery, catalogCategory);
+                  const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory), catalogSortField, catalogSortDirection);
                   const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "");
                   return (
                     <>
@@ -300,6 +302,13 @@ export default function App() {
                           <div className="catalog-chips">
                           <button className={`catalog-chip${catalogCategory === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogCategory === ""} onClick={() => setCatalogCategory("")}>Semua</button>
                             {categories.map((category) => <button className={`catalog-chip${catalogCategory === category ? " is-selected" : ""}`} key={category} type="button" aria-pressed={catalogCategory === category} onClick={() => setCatalogCategory(category)}>{category}</button>)}
+                          </div>
+                        </div>
+                        <div className="catalog-filter-group catalog-sort-group" aria-label="Urutkan katalog">
+                          <span className="catalog-filter-label">Urutkan</span>
+                          <div className="catalog-chips">
+                            {catalogSortOptions.map(({ field, label }) => <button className={`catalog-chip${catalogSortField === field ? " is-selected" : ""}`} key={field} type="button" aria-pressed={catalogSortField === field} onClick={() => { setCatalogSortField(field); setCatalogSortDirection("asc"); }}>{label}</button>)}
+                            {catalogSortField !== "default" && <button className={`catalog-chip${catalogSortDirection === "desc" ? " is-selected" : ""}`} type="button" aria-pressed={catalogSortDirection === "desc"} aria-label={`Urutan ${catalogSortDirection === "asc" ? "A sampai Z" : "Z sampai A"}; ubah ke ${catalogSortDirection === "asc" ? "Z sampai A" : "A sampai Z"}`} onClick={() => setCatalogSortDirection((direction) => direction === "asc" ? "desc" : "asc")}>{catalogSortDirection === "asc" ? "A–Z" : "Z–A"}</button>}
                           </div>
                         </div>
                         {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
