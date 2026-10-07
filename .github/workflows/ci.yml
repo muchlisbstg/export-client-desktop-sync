@@ -10,6 +10,54 @@ permissions:
   contents: read
 
 jobs:
+  interoperability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout desktop repository
+        uses: actions/checkout@v4
+        with:
+          path: .ci/desktop
+          persist-credentials: false
+      - name: Checkout web backend
+        uses: actions/checkout@v4
+        with:
+          repository: muchlisbstg/export-client-web-sync
+          ref: main
+          path: .ci/web
+          persist-credentials: false
+      - name: Checkout mobile backend
+        uses: actions/checkout@v4
+        with:
+          repository: muchlisbstg/export-client-mobile-sync
+          ref: main
+          path: .ci/mobile
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            .ci/web/package-lock.json
+            .ci/mobile/package-lock.json
+            .ci/desktop/package-lock.json
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: .ci/web
+      - name: Install mobile dependencies
+        run: npm ci
+        working-directory: .ci/mobile
+      - name: Install desktop dependencies
+        run: npm ci
+        working-directory: .ci/desktop
+      - name: Test three-backend synchronization
+        run: npm run test:interop
+        working-directory: .ci/web
+        env:
+          MOBILE_REPO: ${{ github.workspace }}/.ci/mobile
+          DESKTOP_REPO: ${{ github.workspace }}/.ci/desktop
+
   verify:
     runs-on: ubuntu-latest
     steps:
