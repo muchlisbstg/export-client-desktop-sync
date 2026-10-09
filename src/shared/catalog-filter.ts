@@ -24,12 +24,18 @@ export function getCategories(products: readonly Product[]): string[] {
   return [...unique].sort((a, b) => a.localeCompare(b, "id-ID", { sensitivity: "base" }));
 }
 
-export function filterProducts(products: readonly Product[], query = "", selectedCategory = ""): Product[] {
+export function getOrigins(products: readonly Product[]): string[] {
+  const unique = new Set(products.map((product) => product.origin).filter(Boolean));
+  return [...unique].sort((a, b) => a.localeCompare(b, "id-ID", { sensitivity: "base" }));
+}
+
+export function filterProducts(products: readonly Product[], query = "", selectedCategory = "", selectedOrigin = ""): Product[] {
   const normalizedQuery = normalizeForSearch(query);
   return products.filter((product) => {
     const matchesCategory = selectedCategory === "" || product.category === selectedCategory;
+    const matchesOrigin = selectedOrigin === "" || product.origin === selectedOrigin;
     const searchable = normalizeForSearch(`${product.name} ${product.category} ${product.origin}`);
-    return matchesCategory && (!normalizedQuery || searchable.includes(normalizedQuery));
+    return matchesCategory && matchesOrigin && (!normalizedQuery || searchable.includes(normalizedQuery));
   });
 }
 

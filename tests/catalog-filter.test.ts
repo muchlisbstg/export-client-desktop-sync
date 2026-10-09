@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getCategories, sortProducts } from "../src/shared/catalog-filter";
+import { filterProducts, getCategories, getOrigins, sortProducts } from "../src/shared/catalog-filter";
 import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
@@ -32,6 +32,11 @@ test("kategori unik dinamis dan terurut locale Indonesia", () => {
   assert.deepEqual(getCategories(dynamic), ["Kakao", "Kopi", "Rempah", "Teh"]);
 });
 
+test("asal unik dinamis dan terurut locale Indonesia", () => {
+  const dynamic = [...products, { ...products[0], id: "coffee-2" }, { ...products[0], id: "coffee-3", origin: "Bali" }];
+  assert.deepEqual(getOrigins(dynamic), ["Bali", "Indonesia", "Vietnam"]);
+});
+
 test("kategori API bernama all tetap menjadi kategori nyata yang bisa dipilih", () => {
   const dynamic = [...products, { ...products[0], id: "literal-all", category: "all" }];
   assert.deepEqual(ids(filterProducts(dynamic, "", "all")), ["literal-all"]);
@@ -49,6 +54,11 @@ test("nilai kategori API berbeda aksen tetap dapat dipilih terpisah", () => {
 test("pencarian dan kategori memakai AND", () => {
   assert.deepEqual(ids(filterProducts(products, "biji", "Kakao")), ["cocoa"]);
   assert.deepEqual(ids(filterProducts(products, "biji", "Kopi")), []);
+});
+
+test("pencarian, kategori, dan asal memakai AND", () => {
+  assert.deepEqual(ids(filterProducts(products, "arabika", "Kopi", "Indonesia")), ["coffee"]);
+  assert.deepEqual(ids(filterProducts(products, "arabika", "Kopi", "Vietnam")), []);
 });
 
 test("filter kosong mengembalikan semua produk", () => {
