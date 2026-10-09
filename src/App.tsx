@@ -25,6 +25,7 @@ import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategor
 import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 import { formatCatalogShare } from "./shared/catalog-share";
+import { filterOutComparedProducts } from "./shared/catalog-compare";
 
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
@@ -78,6 +79,7 @@ export default function App() {
   const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>("default");
   const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
   const [compareProductIds, setCompareProductIds] = useState<string[]>([]);
+  const [hideComparedProducts, setHideComparedProducts] = useState(false);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState<InquiryFieldErrors>({});
@@ -330,7 +332,8 @@ export default function App() {
                   const originFacetProducts = filterProducts(products, catalogQuery, catalogCategory, "");
                   const categoryFacetCounts = getFacetCounts(categoryFacetProducts, "category");
                   const originFacetCounts = getFacetCounts(originFacetProducts, "origin");
-                  const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
+                  const matchingProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
+                  const visibleProducts = hideComparedProducts ? filterOutComparedProducts(matchingProducts, compareProductIds) : matchingProducts;
                   const activeCatalogFilters = getActiveCatalogFilters(catalogQuery, catalogCategory, catalogOrigin);
                   const filtersActive = activeCatalogFilters.length > 0;
 
@@ -390,13 +393,13 @@ export default function App() {
                         })}
                       </div>}
                       <div className="catalog-result-toolbar">
-                        <div className="catalog-result-meta"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
+                        <div className="catalog-result-meta"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {hideComparedProducts ? matchingProducts.length : products.length} {hideComparedProducts ? "hasil" : "produk"}</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span><button className={`catalog-hide-compared${hideComparedProducts ? " is-active" : ""}`} type="button" aria-pressed={hideComparedProducts} disabled={comparedProducts.length === 0 && !hideComparedProducts} onClick={() => setHideComparedProducts((current) => !current)}>{hideComparedProducts ? "Tampilkan yang dibandingkan" : "Sembunyikan yang dibandingkan"}</button></div>
                         <div className="catalog-share-actions">
                           <button className="catalog-share-button" type="button" onClick={() => void copyCatalogResults()} disabled={visibleProducts.length === 0} aria-label="Salin hasil katalog yang sedang ditampilkan"><Copy size={13} />Salin hasil</button>
                           {catalogShareNotice && <span className="catalog-share-notice" role="status" aria-live="polite">{catalogShareNotice}</span>}
                         </div>
                       </div>
-                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
+                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>{hideComparedProducts && matchingProducts.length > 0 ? "Semua hasil sudah dibandingkan" : "Tidak ada produk yang cocok"}</span><button className="text-button" type="button" onClick={() => hideComparedProducts && matchingProducts.length > 0 ? setHideComparedProducts(false) : (() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); })()}>{hideComparedProducts && matchingProducts.length > 0 ? "Tampilkan semua hasil" : "Hapus filter"}</button></div> : (
                         <div className="product-grid">
                           {visibleProducts.map((product, index) => {
                             const isCompared = compareProductIds.includes(product.id);
