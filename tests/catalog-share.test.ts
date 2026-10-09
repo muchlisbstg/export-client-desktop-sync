@@ -10,10 +10,10 @@ const products: Product[] = [
 
 test("formats the supplied result order and active filter/sort context", () => {
   assert.equal(formatCatalogShare([products[1], products[0]], {
-    query: " kopi ", category: "Biji kopi", origin: "Aceh", sortField: "name", sortDirection: "desc",
+    query: " kopi ", category: "Biji kopi", origin: "Aceh", unit: "kg", sortField: "name", sortDirection: "desc",
   }), [
     "Katalog ekspor — 2 produk",
-    'Filter: Pencarian: "kopi"; Kategori: "Biji kopi"; Asal: "Aceh"',
+    'Filter: Pencarian: "kopi"; Kategori: "Biji kopi"; Asal: "Aceh"; Satuan: "kg"',
     "Urutan: Nama (Z–A)",
     "",
     "1. Kakao — Kakao · Sulawesi · per kg",

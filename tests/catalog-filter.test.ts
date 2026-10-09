@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts } from "../src/shared/catalog-filter";
+import { filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts } from "../src/shared/catalog-filter";
 import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
@@ -37,11 +37,19 @@ test("asal unik dinamis dan terurut locale Indonesia", () => {
   assert.deepEqual(getOrigins(dynamic), ["Bali", "Indonesia", "Vietnam"]);
 });
 
+test("satuan unik dinamis, terurut, dan mengabaikan nilai kosong", () => {
+  const dynamic = [...products, { ...products[0], id: "coffee-bag", unit: "bag" }, { ...products[0], id: "missing-unit", unit: "" }];
+  assert.deepEqual(getUnits(dynamic), ["bag", "kg"]);
+});
+
 test("jumlah faset mengikuti filter pasangan yang aktif", () => {
   const categoriesForIndonesia = getFacetCounts(filterProducts(products, "", "", "Indonesia"), "category");
   assert.deepEqual([...categoriesForIndonesia], [["Kopi", 1], ["Kakao", 1]]);
   const originsForCoffee = getFacetCounts(filterProducts(products, "", "Kopi"), "origin");
   assert.deepEqual([...originsForCoffee], [["Indonesia", 1]]);
+  const mixedUnits = [...products, { ...products[0], id: "coffee-bag", unit: "bag" }, { ...products[0], id: "missing-unit", unit: "" }];
+  const unitsForCoffee = getFacetCounts(filterProducts(mixedUnits, "", "Kopi"), "unit");
+  assert.deepEqual([...unitsForCoffee], [["kg", 1], ["bag", 1]]);
 });
 
 test("kategori API bernama all tetap menjadi kategori nyata yang bisa dipilih", () => {
@@ -68,6 +76,11 @@ test("pencarian, kategori, dan asal memakai AND", () => {
   assert.deepEqual(ids(filterProducts(products, "arabika", "Kopi", "Vietnam")), []);
 });
 
+test("pencarian, kategori, asal, dan satuan memakai AND", () => {
+  assert.deepEqual(ids(filterProducts(products, "arabika", "Kopi", "Indonesia", "kg")), ["coffee"]);
+  assert.deepEqual(ids(filterProducts(products, "arabika", "Kopi", "Indonesia", "bag")), []);
+});
+
 test("filter kosong mengembalikan semua produk", () => {
   assert.deepEqual(ids(filterProducts(products)), ids(products));
 });
@@ -79,11 +92,12 @@ test("filter tidak mengubah array sumber maupun item", () => {
   assert.deepEqual(source, snapshot);
 });
 
-test("ringkasan filter aktif merapikan pencarian dan menjaga urutan pencarian-kategori-asal", () => {
-  assert.deepEqual(getActiveCatalogFilters("  kopi  ", "Kopi", "Indonesia"), [
+test("ringkasan filter aktif merapikan pencarian dan menjaga urutan pencarian-kategori-asal-satuan", () => {
+  assert.deepEqual(getActiveCatalogFilters("  kopi  ", "Kopi", "Indonesia", "kg"), [
     { key: "search", value: "kopi" },
     { key: "category", value: "Kopi" },
     { key: "origin", value: "Indonesia" },
+    { key: "unit", value: "kg" },
   ]);
   assert.deepEqual(getActiveCatalogFilters("   ", "", ""), []);
 });

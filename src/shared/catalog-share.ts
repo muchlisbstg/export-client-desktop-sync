@@ -9,6 +9,7 @@ export type CatalogShareOptions = {
   query?: string;
   category?: string;
   origin?: string;
+  unit?: string;
   sortField?: string;
   sortDirection?: "asc" | "desc";
 };
@@ -34,6 +35,7 @@ export function formatCatalogShare(
     ["Pencarian", options.query],
     ["Kategori", options.category],
     ["Asal", options.origin],
+    ["Satuan", options.unit],
   ] as const;
   const activeFilters = filters
     .map(([label, value]) => [label, clean(value)] as const)
