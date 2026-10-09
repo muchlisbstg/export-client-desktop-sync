@@ -19,6 +19,18 @@ export const catalogSortOptions: ReadonlyArray<{ field: CatalogSortField; label:
   { field: "unit", label: "Satuan" },
 ];
 
+export type ActiveCatalogFilter = { key: "search" | "category" | "origin"; value: string };
+
+/** Describe active filters in a stable order for the removable filter summary. */
+export function getActiveCatalogFilters(query: string, category: string, origin: string): ActiveCatalogFilter[] {
+  const filters: ActiveCatalogFilter[] = [];
+  const trimmedQuery = query.trim();
+  if (trimmedQuery) filters.push({ key: "search", value: trimmedQuery });
+  if (category) filters.push({ key: "category", value: category });
+  if (origin) filters.push({ key: "origin", value: origin });
+  return filters;
+}
+
 export function getCategories(products: readonly Product[]): string[] {
   const unique = new Set(products.map((product) => product.category).filter(Boolean));
   return [...unique].sort((a, b) => a.localeCompare(b, "id-ID", { sensitivity: "base" }));
