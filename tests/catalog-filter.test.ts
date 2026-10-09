@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { filterProducts, getCategories, sortProducts } from "../src/shared/catalog-filter";
+import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
 const products: Product[] = [
@@ -83,4 +84,17 @@ test("descending sorting is stable for ties and sorting a filtered list leaves s
   assert.deepEqual(ids(sortProducts(sortableProducts, "default")), originalOrder);
   assert.notStrictEqual(sortProducts(sortableProducts, "default"), sortableProducts);
   assert.deepEqual(ids(sortableProducts), originalOrder);
+});
+
+test("pemilihan pembanding menambah dan menghapus produk tanpa mengubah sumber", () => {
+  const selected = ["coffee", "cocoa"];
+  assert.deepEqual(toggleCompareSelection(selected, "spices"), ["coffee", "cocoa", "spices"]);
+  assert.deepEqual(toggleCompareSelection(selected, "coffee"), ["cocoa"]);
+  assert.deepEqual(selected, ["coffee", "cocoa"]);
+});
+
+test("pemilihan pembanding membatasi tiga produk dan membersihkan id duplikat", () => {
+  assert.equal(MAX_COMPARE_PRODUCTS, 3);
+  assert.deepEqual(toggleCompareSelection(["coffee", "cocoa", "spices"], "tea"), ["coffee", "cocoa", "spices"]);
+  assert.deepEqual(toggleCompareSelection(["coffee", "coffee", ""], "tea"), ["coffee", "tea"]);
 });

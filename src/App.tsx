@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
 import { catalogSortOptions, filterProducts, getCategories, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 
 type Page = "overview" | "request" | "track" | "settings";
@@ -74,6 +75,7 @@ export default function App() {
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>("default");
   const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
+  const [compareProductIds, setCompareProductIds] = useState<string[]>([]);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState<InquiryFieldErrors>({});
@@ -110,6 +112,12 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const comparedProducts = products.filter((product) => compareProductIds.includes(product.id));
+
+  function toggleCompare(productId: string) {
+    setCompareProductIds((current) => toggleCompareSelection(current, productId));
+  }
 
   function goTo(nextPage: Page) {
     setPage(nextPage);
@@ -341,16 +349,26 @@ export default function App() {
                         </div>
                         {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
                       </div>
-                      <div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div>
+                      <div className="catalog-result-toolbar"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
                       {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
                         <div className="product-grid">
-                          {visibleProducts.map((product, index) => <button className="product-card" key={product.id} type="button" onClick={() => { setForm((current) => ({ ...current, productId: product.id })); goTo("request"); }}>
-                            <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin">{product.origin}</span><span className="product-orbit" /></span>
-                            <span className="product-info"><small>{product.category}</small><strong>{product.name}</strong><span>Asal {product.origin}<i>·</i> per {product.unit}</span></span>
-                            <span className="product-arrow"><ArrowUpRight size={15} /></span>
-                          </button>)}
+                          {visibleProducts.map((product, index) => {
+                            const isCompared = compareProductIds.includes(product.id);
+                            return <article className="product-card" key={product.id}>
+                              <button className="product-card-main" type="button" onClick={() => { setForm((current) => ({ ...current, productId: product.id })); goTo("request"); }}>
+                                <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin">{product.origin}</span><span className="product-orbit" /></span>
+                                <span className="product-info"><small>{product.category}</small><strong>{product.name}</strong><span>Asal {product.origin}<i>·</i> per {product.unit}</span></span>
+                                <span className="product-arrow"><ArrowUpRight size={15} /></span>
+                              </button>
+                              <button className={`compare-toggle${isCompared ? " is-selected" : ""}`} type="button" aria-pressed={isCompared} disabled={!isCompared && compareProductIds.length >= MAX_COMPARE_PRODUCTS} onClick={() => toggleCompare(product.id)}>{isCompared ? "✓ Ditambahkan" : "Bandingkan"}</button>
+                            </article>;
+                          })}
                         </div>
                       )}
+                      {compareProductIds.length > 0 && <section className="catalog-compare-panel" aria-label="Perbandingan produk">
+                        <div className="catalog-compare-heading"><div><h3>Perbandingan produk</h3><p role="status" aria-live="polite">{comparedProducts.length} dari {MAX_COMPARE_PRODUCTS} dipilih · atribut dari katalog API</p></div><button type="button" onClick={() => setCompareProductIds([])}>Hapus semua</button></div>
+                        {comparedProducts.length < 2 ? <p className="catalog-compare-hint">Pilih setidaknya satu produk lagi untuk membandingkan detail.</p> : <div className="catalog-compare-table-wrap"><table className="catalog-compare-table"><thead><tr><th scope="col">Detail</th>{comparedProducts.map((product) => <th scope="col" key={product.id}><span>{product.name}</span><button type="button" aria-label={`Hapus ${product.name} dari perbandingan`} onClick={() => toggleCompare(product.id)}>×</button></th>)}</tr></thead><tbody><tr><th scope="row">Kategori</th>{comparedProducts.map((product) => <td key={product.id}>{product.category}</td>)}</tr><tr><th scope="row">Asal</th>{comparedProducts.map((product) => <td key={product.id}>{product.origin}</td>)}</tr><tr><th scope="row">Satuan</th>{comparedProducts.map((product) => <td key={product.id}>{product.unit}</td>)}</tr></tbody></table></div>}
+                      </section>}
                     </>
                   );
                 })()}
