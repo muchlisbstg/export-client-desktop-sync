@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterOutComparedProducts, formatComparisonShare, getComparisonFieldsToDisplay, getDifferingComparisonFields } from "../src/shared/catalog-compare";
+import { filterOutComparedProducts, formatComparisonCsv, formatComparisonShare, getComparisonFieldsToDisplay, getDifferingComparisonFields } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
 const products: Product[] = [
@@ -55,4 +55,23 @@ test("comparison summary includes only visible fields and marks differing values
 test("comparison summary explains an empty difference-only view", () => {
   const matching = [products[0], { ...products[0], id: "coffee-copy" }];
   assert.match(formatComparisonShare(matching, [], []), /Tidak ada atribut yang berbeda/);
+});
+
+test("comparison CSV includes only visible attributes and preserves selected product order", () => {
+  assert.equal(
+    formatComparisonCsv(products.slice(0, 2), ["category"]),
+    '"Detail","Coffee","Cocoa"\r\n"Kategori","Kopi","Kakao"',
+  );
+});
+
+test("comparison CSV quotes special values and neutralizes spreadsheet formulas", () => {
+  const unsafe = [
+    { ...products[0], name: '=SUM(1,1)', category: 'Kopi "A"' },
+    { ...products[1], name: "Cocoa", category: "=HYPERLINK(\"https://example.invalid\")" },
+  ];
+  assert.equal(
+    formatComparisonCsv(unsafe, ["category"]),
+    '"Detail","\t=SUM(1,1)","Cocoa"\r\n"Kategori","Kopi ""A""","\t=HYPERLINK(""https://example.invalid"")"',
+  );
+  assert.equal(formatComparisonCsv([products[0]], ["category"]), "");
 });

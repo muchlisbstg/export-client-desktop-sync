@@ -12,6 +12,7 @@ export type DesktopApi = {
   createInquiry(baseUrl: string, input: CreateInquiryInput): Promise<CreateInquiryResult>;
   trackInquiry(baseUrl: string, code: string): Promise<InquiryStatus>;
   copyText(value: string): Promise<boolean>;
+  saveComparisonCsv(value: string): Promise<boolean>;
 };
 
 declare global {

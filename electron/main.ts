@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { app, BrowserWindow, clipboard, ipcMain, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiClient } from "../src/shared/api-client";
@@ -53,6 +54,17 @@ function registerIpcHandlers() {
   ipcMain.handle("app:copy-text", (_event, value: unknown) => {
     if (typeof value !== "string" || value.length > 128) return false;
     clipboard.writeText(value);
+    return true;
+  });
+  ipcMain.handle("app:save-comparison-csv", async (_event, value: unknown) => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 1_000_000) return false;
+    const result = await dialog.showSaveDialog({
+      title: "Simpan perbandingan produk",
+      defaultPath: "perbandingan-produk.csv",
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    await writeFile(result.filePath, `\uFEFF${value}`, { encoding: "utf8" });
     return true;
   });
 }
