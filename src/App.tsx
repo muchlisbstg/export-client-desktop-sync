@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
-import { catalogSortOptions, filterProducts, getCategories, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 
@@ -324,6 +324,10 @@ export default function App() {
                 ) : <div className="empty-state">Belum ada produk di katalog.</div> : (() => {
                   const categories = getCategories(products);
                   const origins = getOrigins(products);
+                  const categoryFacetProducts = filterProducts(products, catalogQuery, "", catalogOrigin);
+                  const originFacetProducts = filterProducts(products, catalogQuery, catalogCategory, "");
+                  const categoryFacetCounts = getFacetCounts(categoryFacetProducts, "category");
+                  const originFacetCounts = getFacetCounts(originFacetProducts, "origin");
                   const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
                   const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "" || catalogOrigin !== "");
                   return (
@@ -339,15 +343,15 @@ export default function App() {
                         <div className="catalog-filter-group" aria-label="Kategori produk">
                           <span className="catalog-filter-label">Kategori</span>
                           <div className="catalog-chips">
-                          <button className={`catalog-chip${catalogCategory === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogCategory === ""} onClick={() => setCatalogCategory("")}>Semua</button>
-                            {categories.map((category) => <button className={`catalog-chip${catalogCategory === category ? " is-selected" : ""}`} key={category} type="button" aria-pressed={catalogCategory === category} onClick={() => setCatalogCategory(category)}>{category}</button>)}
+                          <button className={`catalog-chip${catalogCategory === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogCategory === ""} onClick={() => setCatalogCategory("")}>Semua ({categoryFacetProducts.length})</button>
+                            {categories.map((category) => <button className={`catalog-chip${catalogCategory === category ? " is-selected" : ""}`} key={category} type="button" aria-pressed={catalogCategory === category} onClick={() => setCatalogCategory(category)}>{category} ({categoryFacetCounts.get(category) ?? 0})</button>)}
                           </div>
                         </div>
                         <div className="catalog-filter-group" aria-label="Asal produk">
                           <span className="catalog-filter-label">Asal</span>
                           <div className="catalog-chips">
-                            <button className={`catalog-chip${catalogOrigin === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogOrigin === ""} onClick={() => setCatalogOrigin("")}>Semua asal</button>
-                            {origins.map((origin) => <button className={`catalog-chip${catalogOrigin === origin ? " is-selected" : ""}`} key={origin} type="button" aria-pressed={catalogOrigin === origin} onClick={() => setCatalogOrigin(origin)}>{origin}</button>)}
+                            <button className={`catalog-chip${catalogOrigin === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogOrigin === ""} onClick={() => setCatalogOrigin("")}>Semua asal ({originFacetProducts.length})</button>
+                            {origins.map((origin) => <button className={`catalog-chip${catalogOrigin === origin ? " is-selected" : ""}`} key={origin} type="button" aria-pressed={catalogOrigin === origin} onClick={() => setCatalogOrigin(origin)}>{origin} ({originFacetCounts.get(origin) ?? 0})</button>)}
                           </div>
                         </div>
                         <div className="catalog-filter-group catalog-sort-group" aria-label="Urutkan katalog">
