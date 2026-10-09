@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDifferingComparisonFields } from "../src/shared/catalog-compare";
+import { filterOutComparedProducts, getDifferingComparisonFields } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
 const products: Product[] = [
@@ -19,6 +19,14 @@ test("comparison shows no differences for identical values or fewer than two pro
   assert.deepEqual(getDifferingComparisonFields(matching), []);
   assert.deepEqual(getDifferingComparisonFields([products[0]]), []);
   assert.deepEqual(getDifferingComparisonFields([]), []);
+});
+
+test("hiding compared products preserves remaining catalog order without mutating the input", () => {
+  const input = products.map((product) => ({ ...product }));
+  const snapshot = structuredClone(input);
+  assert.deepEqual(filterOutComparedProducts(input, ["cocoa", "coffee"]).map((product) => product.id), ["spices"]);
+  assert.deepEqual(filterOutComparedProducts(input, []), input);
+  assert.deepEqual(input, snapshot);
 });
 
 test("difference detection does not mutate the product list", () => {
