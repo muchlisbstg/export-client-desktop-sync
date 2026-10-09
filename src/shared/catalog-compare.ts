@@ -35,3 +35,38 @@ export function getComparisonFieldsToDisplay<T extends ComparisonAttributes>(
 ): ComparisonField[] {
   return onlyDifferences ? getDifferingComparisonFields(products) : [...comparisonFields];
 }
+
+const comparisonShareLabels: Record<ComparisonField, string> = {
+  category: "Kategori",
+  origin: "Asal",
+  unit: "Satuan",
+};
+
+function cleanComparisonShareValue(value: unknown, fallback = "—"): string {
+  return String(value ?? "").replace(/\s+/gu, " ").trim() || fallback;
+}
+
+/** Format only the selected products and fields currently shown in the comparison. */
+export function formatComparisonShare<T extends ComparisonAttributes & { name: string }>(
+  products: readonly T[],
+  visibleFields: readonly ComparisonField[],
+  differingFields: readonly ComparisonField[],
+): string {
+  const lines = [`Perbandingan produk — ${products.length} produk`];
+  if (products.length < 2) {
+    lines.push("", "Pilih setidaknya dua produk untuk membandingkan.");
+    return lines.join("\n");
+  }
+
+  lines.push("", `Produk: ${products.map((product) => cleanComparisonShareValue(product.name, "Tanpa nama")).join(" | ")}`);
+  if (visibleFields.length === 0) {
+    lines.push("", "Tidak ada atribut yang berbeda pada pilihan ini.");
+    return lines.join("\n");
+  }
+
+  for (const field of visibleFields) {
+    const values = products.map((product) => cleanComparisonShareValue(product[field]));
+    lines.push(`${comparisonShareLabels[field]}: ${values.join(" | ")}${differingFields.includes(field) ? " (berbeda)" : ""}`);
+  }
+  return lines.join("\n");
+}
