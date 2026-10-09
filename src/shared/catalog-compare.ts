@@ -42,6 +42,28 @@ const comparisonShareLabels: Record<ComparisonField, string> = {
   unit: "Satuan",
 };
 
+const comparisonCsvLabels: Record<ComparisonField, string> = comparisonShareLabels;
+
+function escapeComparisonCsvCell(value: unknown): string {
+  const text = String(value ?? "");
+  const safeText = /^[\t\r\n ]*[=+\-@]/u.test(text) ? `\t${text}` : text;
+  return `"${safeText.replace(/"/gu, '""')}"`;
+}
+
+/** Format the current comparison as spreadsheet-safe RFC 4180 CSV. */
+export function formatComparisonCsv<T extends ComparisonAttributes & { name: string }>(
+  products: readonly T[],
+  visibleFields: readonly ComparisonField[],
+): string {
+  if (products.length < 2) return "";
+
+  const rows: string[][] = [
+    ["Detail", ...products.map((product) => product.name)],
+    ...visibleFields.map((field) => [comparisonCsvLabels[field], ...products.map((product) => product[field])]),
+  ];
+  return rows.map((row) => row.map(escapeComparisonCsvCell).join(",")).join("\r\n");
+}
+
 function cleanComparisonShareValue(value: unknown, fallback = "—"): string {
   return String(value ?? "").replace(/\s+/gu, " ").trim() || fallback;
 }
