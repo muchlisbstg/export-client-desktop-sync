@@ -26,3 +26,12 @@ export function filterOutComparedProducts<T extends { id: string }>(products: re
 export function getDifferingComparisonFields<T extends ComparisonAttributes>(products: readonly T[]): ComparisonField[] {
   return comparisonFields.filter((field) => new Set(products.map((product) => product[field])).size > 1);
 }
+
+
+/** Choose all comparison attributes by default, or only attributes with differing values. */
+export function getComparisonFieldsToDisplay<T extends ComparisonAttributes>(
+  products: readonly T[],
+  onlyDifferences: boolean,
+): ComparisonField[] {
+  return onlyDifferences ? getDifferingComparisonFields(products) : [...comparisonFields];
+}

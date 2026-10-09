@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterOutComparedProducts, getDifferingComparisonFields } from "../src/shared/catalog-compare";
+import { filterOutComparedProducts, getComparisonFieldsToDisplay, getDifferingComparisonFields } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
 const products: Product[] = [
@@ -34,4 +34,14 @@ test("difference detection does not mutate the product list", () => {
   const snapshot = structuredClone(input);
   getDifferingComparisonFields(input);
   assert.deepEqual(input, snapshot);
+});
+
+
+test("comparison can show all attributes or only attributes that differ", () => {
+  assert.deepEqual(getComparisonFieldsToDisplay(products, false), ["category", "origin", "unit"]);
+  assert.deepEqual(getComparisonFieldsToDisplay(products, true), ["category", "origin", "unit"]);
+  assert.deepEqual(getComparisonFieldsToDisplay(products.slice(0, 2), true), ["category"]);
+  const matching = [products[0], { ...products[0], id: "coffee-copy" }];
+  assert.deepEqual(getComparisonFieldsToDisplay(matching, true), []);
+  assert.deepEqual(getComparisonFieldsToDisplay(matching, false), ["category", "origin", "unit"]);
 });
