@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getCategories, getOrigins, sortProducts } from "../src/shared/catalog-filter";
+import { filterProducts, getCategories, getFacetCounts, getOrigins, sortProducts } from "../src/shared/catalog-filter";
 import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
@@ -35,6 +35,13 @@ test("kategori unik dinamis dan terurut locale Indonesia", () => {
 test("asal unik dinamis dan terurut locale Indonesia", () => {
   const dynamic = [...products, { ...products[0], id: "coffee-2" }, { ...products[0], id: "coffee-3", origin: "Bali" }];
   assert.deepEqual(getOrigins(dynamic), ["Bali", "Indonesia", "Vietnam"]);
+});
+
+test("jumlah faset mengikuti filter pasangan yang aktif", () => {
+  const categoriesForIndonesia = getFacetCounts(filterProducts(products, "", "", "Indonesia"), "category");
+  assert.deepEqual([...categoriesForIndonesia], [["Kopi", 1], ["Kakao", 1]]);
+  const originsForCoffee = getFacetCounts(filterProducts(products, "", "Kopi"), "origin");
+  assert.deepEqual([...originsForCoffee], [["Indonesia", 1]]);
 });
 
 test("kategori API bernama all tetap menjadi kategori nyata yang bisa dipilih", () => {

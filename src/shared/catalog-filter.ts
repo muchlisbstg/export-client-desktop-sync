@@ -29,6 +29,22 @@ export function getOrigins(products: readonly Product[]): string[] {
   return [...unique].sort((a, b) => a.localeCompare(b, "id-ID", { sensitivity: "base" }));
 }
 
+export type CatalogFacetField = "category" | "origin";
+
+/** Count non-empty facet values in the supplied, already-filtered catalog subset. */
+export function getFacetCounts<T extends Pick<Product, CatalogFacetField>>(
+  products: readonly T[],
+  field: CatalogFacetField,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const product of products) {
+    const value = product[field];
+    if (!value) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export function filterProducts(products: readonly Product[], query = "", selectedCategory = "", selectedOrigin = ""): Product[] {
   const normalizedQuery = normalizeForSearch(query);
   return products.filter((product) => {
