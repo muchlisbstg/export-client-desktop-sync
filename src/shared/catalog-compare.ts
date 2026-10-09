@@ -1,4 +1,7 @@
 export const MAX_COMPARE_PRODUCTS = 3;
+export type ComparisonField = "category" | "origin" | "unit";
+const comparisonFields: readonly ComparisonField[] = ["category", "origin", "unit"];
+type ComparisonAttributes = { category: string; origin: string; unit: string };
 
 /** Toggle a product in a client-only comparison selection without mutating the input. */
 export function toggleCompareSelection(
@@ -11,4 +14,9 @@ export function toggleCompareSelection(
   const safeLimit = Math.max(0, Math.floor(limit));
   if (!productId || uniqueIds.length >= safeLimit) return uniqueIds;
   return [...uniqueIds, productId];
+}
+
+/** Return catalog attributes whose values differ across the selected products. */
+export function getDifferingComparisonFields<T extends ComparisonAttributes>(products: readonly T[]): ComparisonField[] {
+  return comparisonFields.filter((field) => new Set(products.map((product) => product[field])).size > 1);
 }
