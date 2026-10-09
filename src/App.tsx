@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
-import { catalogSortOptions, filterProducts, getCategories, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getCategories, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 
@@ -73,6 +73,7 @@ export default function App() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
+  const [catalogOrigin, setCatalogOrigin] = useState("");
   const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>("default");
   const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
   const [compareProductIds, setCompareProductIds] = useState<string[]>([]);
@@ -322,8 +323,9 @@ export default function App() {
                   </div>
                 ) : <div className="empty-state">Belum ada produk di katalog.</div> : (() => {
                   const categories = getCategories(products);
-                  const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory), catalogSortField, catalogSortDirection);
-                  const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "");
+                  const origins = getOrigins(products);
+                  const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
+                  const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "" || catalogOrigin !== "");
                   return (
                     <>
                       <div className="catalog-controls" aria-label="Filter katalog">
@@ -341,6 +343,13 @@ export default function App() {
                             {categories.map((category) => <button className={`catalog-chip${catalogCategory === category ? " is-selected" : ""}`} key={category} type="button" aria-pressed={catalogCategory === category} onClick={() => setCatalogCategory(category)}>{category}</button>)}
                           </div>
                         </div>
+                        <div className="catalog-filter-group" aria-label="Asal produk">
+                          <span className="catalog-filter-label">Asal</span>
+                          <div className="catalog-chips">
+                            <button className={`catalog-chip${catalogOrigin === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogOrigin === ""} onClick={() => setCatalogOrigin("")}>Semua asal</button>
+                            {origins.map((origin) => <button className={`catalog-chip${catalogOrigin === origin ? " is-selected" : ""}`} key={origin} type="button" aria-pressed={catalogOrigin === origin} onClick={() => setCatalogOrigin(origin)}>{origin}</button>)}
+                          </div>
+                        </div>
                         <div className="catalog-filter-group catalog-sort-group" aria-label="Urutkan katalog">
                           <span className="catalog-filter-label">Urutkan</span>
                           <div className="catalog-chips">
@@ -348,10 +357,10 @@ export default function App() {
                             {catalogSortField !== "default" && <button className={`catalog-chip${catalogSortDirection === "desc" ? " is-selected" : ""}`} type="button" aria-pressed={catalogSortDirection === "desc"} aria-label={`Urutan ${catalogSortDirection === "asc" ? "A sampai Z" : "Z sampai A"}; ubah ke ${catalogSortDirection === "asc" ? "Z sampai A" : "A sampai Z"}`} onClick={() => setCatalogSortDirection((direction) => direction === "asc" ? "desc" : "asc")}>{catalogSortDirection === "asc" ? "A–Z" : "Z–A"}</button>}
                           </div>
                         </div>
-                        {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
+                        {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
                       </div>
                       <div className="catalog-result-toolbar"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
-                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
+                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
                         <div className="product-grid">
                           {visibleProducts.map((product, index) => {
                             const isCompared = compareProductIds.includes(product.id);
