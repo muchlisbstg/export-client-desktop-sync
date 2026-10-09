@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
-import { catalogSortOptions, filterProducts, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 
@@ -329,7 +329,8 @@ export default function App() {
                   const categoryFacetCounts = getFacetCounts(categoryFacetProducts, "category");
                   const originFacetCounts = getFacetCounts(originFacetProducts, "origin");
                   const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
-                  const filtersActive = Boolean(catalogQuery.trim() || catalogCategory !== "" || catalogOrigin !== "");
+                  const activeCatalogFilters = getActiveCatalogFilters(catalogQuery, catalogCategory, catalogOrigin);
+                  const filtersActive = activeCatalogFilters.length > 0;
                   return (
                     <>
                       <div className="catalog-controls" aria-label="Filter katalog">
@@ -363,6 +364,13 @@ export default function App() {
                         </div>
                         {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
                       </div>
+                      {activeCatalogFilters.length > 0 && <div className="catalog-active-filters" role="group" aria-label="Filter aktif">
+                        <span className="catalog-active-label">Filter aktif</span>
+                        {activeCatalogFilters.map((filter) => {
+                          const label = filter.key === "search" ? "Pencarian" : filter.key === "category" ? "Kategori" : "Asal";
+                          return <span className="catalog-active-chip" key={filter.key}><span>{label}: {filter.value}</span><button type="button" aria-label={`Hapus filter ${label.toLowerCase()}: ${filter.value}`} onClick={() => { if (filter.key === "search") setCatalogQuery(""); else if (filter.key === "category") setCatalogCategory(""); else setCatalogOrigin(""); }}>×</button></span>;
+                        })}
+                      </div>}
                       <div className="catalog-result-toolbar"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
                       {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
                         <div className="product-grid">

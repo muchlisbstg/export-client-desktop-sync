@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getCategories, getFacetCounts, getOrigins, sortProducts } from "../src/shared/catalog-filter";
+import { filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts } from "../src/shared/catalog-filter";
 import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
@@ -77,6 +77,15 @@ test("filter tidak mengubah array sumber maupun item", () => {
   const snapshot = structuredClone(source);
   filterProducts(source, "kakao", "Kakao");
   assert.deepEqual(source, snapshot);
+});
+
+test("ringkasan filter aktif merapikan pencarian dan menjaga urutan pencarian-kategori-asal", () => {
+  assert.deepEqual(getActiveCatalogFilters("  kopi  ", "Kopi", "Indonesia"), [
+    { key: "search", value: "kopi" },
+    { key: "category", value: "Kopi" },
+    { key: "origin", value: "Indonesia" },
+  ]);
+  assert.deepEqual(getActiveCatalogFilters("   ", "", ""), []);
 });
 
 const sortableProducts: Product[] = [
