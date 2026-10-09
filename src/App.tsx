@@ -24,6 +24,7 @@ import type { InquiryStatus, Product } from "./shared/api-types";
 import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
+import { formatCatalogShare } from "./shared/catalog-share";
 
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
@@ -88,6 +89,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
+  const [catalogShareNotice, setCatalogShareNotice] = useState("");
 
   const refresh = useCallback(async () => {
     setConnection("checking");
@@ -331,6 +333,22 @@ export default function App() {
                   const visibleProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
                   const activeCatalogFilters = getActiveCatalogFilters(catalogQuery, catalogCategory, catalogOrigin);
                   const filtersActive = activeCatalogFilters.length > 0;
+
+                  async function copyCatalogResults() {
+                    try {
+                      const success = await window.desktopApi.copyText(formatCatalogShare(visibleProducts, {
+                        query: catalogQuery,
+                        category: catalogCategory,
+                        origin: catalogOrigin,
+                        sortField: catalogSortField,
+                        sortDirection: catalogSortDirection,
+                      }));
+                      setCatalogShareNotice(success ? "Daftar katalog disalin. Silakan tempel untuk membagikan." : "Daftar katalog tidak dapat disalin.");
+                    } catch (caught) {
+                      setCatalogShareNotice(messageFrom(caught, "Daftar katalog tidak dapat disalin."));
+                    }
+                  }
+
                   return (
                     <>
                       <div className="catalog-controls" aria-label="Filter katalog">
@@ -371,7 +389,13 @@ export default function App() {
                           return <span className="catalog-active-chip" key={filter.key}><span>{label}: {filter.value}</span><button type="button" aria-label={`Hapus filter ${label.toLowerCase()}: ${filter.value}`} onClick={() => { if (filter.key === "search") setCatalogQuery(""); else if (filter.key === "category") setCatalogCategory(""); else setCatalogOrigin(""); }}>×</button></span>;
                         })}
                       </div>}
-                      <div className="catalog-result-toolbar"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
+                      <div className="catalog-result-toolbar">
+                        <div className="catalog-result-meta"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {products.length} produk</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span></div>
+                        <div className="catalog-share-actions">
+                          <button className="catalog-share-button" type="button" onClick={() => void copyCatalogResults()} disabled={visibleProducts.length === 0} aria-label="Salin hasil katalog yang sedang ditampilkan"><Copy size={13} />Salin hasil</button>
+                          {catalogShareNotice && <span className="catalog-share-notice" role="status" aria-live="polite">{catalogShareNotice}</span>}
+                        </div>
+                      </div>
                       {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>Tidak ada produk yang cocok</span><button className="text-button" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Hapus filter</button></div> : (
                         <div className="product-grid">
                           {visibleProducts.map((product, index) => {
