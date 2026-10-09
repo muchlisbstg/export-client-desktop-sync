@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
 import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
-import { getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
+import { getComparisonFieldsToDisplay, getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 import { formatCatalogShare } from "./shared/catalog-share";
 import { filterOutComparedProducts } from "./shared/catalog-compare";
@@ -30,6 +30,7 @@ import { filterOutComparedProducts } from "./shared/catalog-compare";
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
 
+const comparisonFieldLabels = { category: "Kategori", origin: "Asal", unit: "Satuan" } as const;
 const defaultApiUrl = "http://127.0.0.1:4002";
 const apiUrlStorageKey = "export-client-api-url";
 const initialForm = {
@@ -80,6 +81,7 @@ export default function App() {
   const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
   const [compareProductIds, setCompareProductIds] = useState<string[]>([]);
   const [hideComparedProducts, setHideComparedProducts] = useState(false);
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState<InquiryFieldErrors>({});
@@ -120,6 +122,7 @@ export default function App() {
 
   const comparedProducts = products.filter((product) => compareProductIds.includes(product.id));
   const differingComparisonFields = getDifferingComparisonFields(comparedProducts);
+  const visibleComparisonFields = getComparisonFieldsToDisplay(comparedProducts, showOnlyDifferences);
 
   function toggleCompare(productId: string) {
     setCompareProductIds((current) => toggleCompareSelection(current, productId));
@@ -416,7 +419,14 @@ export default function App() {
                       )}
                       {compareProductIds.length > 0 && <section className="catalog-compare-panel" aria-label="Perbandingan produk">
                         <div className="catalog-compare-heading"><div><h3>Perbandingan produk</h3><p role="status" aria-live="polite">{comparedProducts.length} dari {MAX_COMPARE_PRODUCTS} dipilih · atribut dari katalog API</p></div><button type="button" onClick={() => setCompareProductIds([])}>Hapus semua</button></div>
-                        {comparedProducts.length < 2 ? <p className="catalog-compare-hint">Pilih setidaknya satu produk lagi untuk membandingkan detail.</p> : <div className="catalog-compare-table-wrap"><table className="catalog-compare-table"><thead><tr><th scope="col">Detail</th>{comparedProducts.map((product) => <th scope="col" key={product.id}><span>{product.name}</span><button type="button" aria-label={`Hapus ${product.name} dari perbandingan`} onClick={() => toggleCompare(product.id)}>×</button></th>)}</tr></thead><tbody><tr><th scope="row">Kategori</th>{comparedProducts.map((product) => <td key={product.id} className={differingComparisonFields.includes("category") ? "is-different" : undefined}>{differingComparisonFields.includes("category") && <span className="catalog-compare-difference">Berbeda</span>}{product.category}</td>)}</tr><tr><th scope="row">Asal</th>{comparedProducts.map((product) => <td key={product.id} className={differingComparisonFields.includes("origin") ? "is-different" : undefined}>{differingComparisonFields.includes("origin") && <span className="catalog-compare-difference">Berbeda</span>}{product.origin}</td>)}</tr><tr><th scope="row">Satuan</th>{comparedProducts.map((product) => <td key={product.id} className={differingComparisonFields.includes("unit") ? "is-different" : undefined}>{differingComparisonFields.includes("unit") && <span className="catalog-compare-difference">Berbeda</span>}{product.unit}</td>)}</tr></tbody></table></div>}
+                        {comparedProducts.length < 2 ? <p className="catalog-compare-hint">Pilih setidaknya satu produk lagi untuk membandingkan detail.</p> : <>
+                <div className="catalog-compare-actions">
+                  <button className="catalog-compare-filter" type="button" aria-pressed={showOnlyDifferences} onClick={() => setShowOnlyDifferences((current) => !current)}>{showOnlyDifferences ? "Tampilkan semua atribut" : "Hanya tampilkan perbedaan"}</button>
+                </div>
+                {showOnlyDifferences && visibleComparisonFields.length === 0 ? <p className="catalog-compare-empty" role="status">Tidak ada atribut yang berbeda pada pilihan ini.</p> : <div className="catalog-compare-table-wrap"><table className="catalog-compare-table"><thead><tr><th scope="col">Detail</th>{comparedProducts.map((product) => <th scope="col" key={product.id}><span>{product.name}</span><button type="button" aria-label={`Hapus ${product.name} dari perbandingan`} onClick={() => toggleCompare(product.id)}>×</button></th>)}</tr></thead><tbody>
+                  {visibleComparisonFields.map((field) => <tr key={field}><th scope="row">{comparisonFieldLabels[field]}</th>{comparedProducts.map((product) => <td key={product.id} className={differingComparisonFields.includes(field) ? "is-different" : undefined}>{differingComparisonFields.includes(field) && <span className="catalog-compare-difference">Berbeda</span>}{product[field]}</td>)}</tr>)}
+                </tbody></table></div>}
+              </>}
                       </section>}
                     </>
                   );
