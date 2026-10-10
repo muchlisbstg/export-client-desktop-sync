@@ -67,6 +67,17 @@ function registerIpcHandlers() {
     await writeFile(result.filePath, `\uFEFF${value}`, { encoding: "utf8" });
     return true;
   });
+  ipcMain.handle("app:save-catalog-csv", async (_event, value: unknown) => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 1_000_000) return false;
+    const result = await dialog.showSaveDialog({
+      title: "Simpan katalog produk",
+      defaultPath: "katalog-ekspor.csv",
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (result.canceled || !result.filePath) return false;
+    await writeFile(result.filePath, `\uFEFF${value}`, { encoding: "utf8" });
+    return true;
+  });
 }
 
 function createWindow() {
