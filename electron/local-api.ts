@@ -242,7 +242,19 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
     }
   }
 
-  app.get("/health", (_req, res) => { db.prepare("SELECT 1").get(); res.json({ status: "ok", nodeId, syncEnabled }); });
+  app.get("/health", (_req, res) => {
+    db.prepare("SELECT 1").get();
+    const pendingDeliveries = (db.prepare("SELECT COUNT(*) AS count FROM sync_outbox").get() as { count: number }).count;
+    const retryingDeliveries = (db.prepare("SELECT COUNT(*) AS count FROM sync_outbox WHERE last_error IS NOT NULL").get() as { count: number }).count;
+    const conflicts = (db.prepare("SELECT COUNT(*) AS count FROM sync_conflicts").get() as { count: number }).count;
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      status: "ok",
+      nodeId,
+      syncEnabled,
+      syncStatus: { enabled: syncEnabled, peerCount: peers.length, pendingDeliveries, retryingDeliveries, conflicts },
+    });
+  });
   app.get("/api/v1/products", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({ data: db.prepare("SELECT id,name,category,origin,unit FROM products WHERE active = 1 ORDER BY name").all() });

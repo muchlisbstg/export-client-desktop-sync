@@ -26,6 +26,17 @@ export type CreateInquiryResult = {
   createdAt: string;
 };
 
+export type SyncStatus = {
+  enabled: boolean;
+  peerCount: number;
+  pendingDeliveries: number;
+  retryingDeliveries: number;
+  conflicts: number;
+};
+
 export type ApiHealth = {
   status: "ok";
+  nodeId: string;
+  syncEnabled: boolean;
+  syncStatus: SyncStatus;
 };
