@@ -12,10 +12,12 @@ const products: Product[] = [
 
 const ids = (items: Product[]) => items.map((item) => item.id);
 
-test("pencarian mencocokkan nama, kategori, dan asal", () => {
+test("pencarian mencocokkan nama, kategori, asal, dan satuan", () => {
   assert.deepEqual(ids(filterProducts(products, "arabika")), ["coffee"]);
   assert.deepEqual(ids(filterProducts(products, "rempah")), ["spices"]);
   assert.deepEqual(ids(filterProducts(products, "vietnam")), ["spices"]);
+  const mixedUnits = [...products, { ...products[0], id: "coffee-bag", unit: "bag" }];
+  assert.deepEqual(ids(filterProducts(mixedUnits, "bag")), ["coffee-bag"]);
 });
 
 test("pencarian mengabaikan kapitalisasi dan trim", () => {
