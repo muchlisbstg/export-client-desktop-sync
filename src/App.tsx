@@ -97,6 +97,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
+  const [trackingCodeCopyNotice, setTrackingCodeCopyNotice] = useState("");
   const [catalogShareNotice, setCatalogShareNotice] = useState("");
   const [catalogCsvNotice, setCatalogCsvNotice] = useState("");
   const [comparisonShareNotice, setComparisonShareNotice] = useState("");
@@ -192,6 +193,8 @@ export default function App() {
         quantity: Number(form.quantity),
       });
       setTrackingCode(result.trackingCode);
+      setTrackingCodeCopyNotice("");
+      setCopied(false);
       setTrackingInput(result.trackingCode);
       setForm((current) => ({ ...initialForm, productId: current.productId }));
       setFieldErrors({});
@@ -220,9 +223,17 @@ export default function App() {
 
   async function copyCode() {
     if (!trackingCode) return;
-    const success = await window.desktopApi.copyText(trackingCode);
-    setCopied(success);
-    window.setTimeout(() => setCopied(false), 1800);
+    setTrackingCodeCopyNotice("");
+    setCopied(false);
+    try {
+      const success = await window.desktopApi.copyText(trackingCode);
+      if (!success) throw new Error("Kode pelacakan tidak dapat disalin.");
+      setCopied(true);
+      setTrackingCodeCopyNotice("Kode pelacakan berhasil disalin.");
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch (caught) {
+      setTrackingCodeCopyNotice(messageFrom(caught, "Kode pelacakan tidak dapat disalin."));
+    }
   }
 
   function saveApiUrl(event: FormEvent<HTMLFormElement>) {
@@ -536,7 +547,7 @@ export default function App() {
                   <label className="full-span" htmlFor="rfq-quantity">Jumlah (kg)<input id="rfq-quantity" required type="number" min="0" max="1000000" step="any" value={form.quantity} onChange={(event) => updateInquiryField("quantity", event.target.value)} aria-invalid={Boolean(fieldErrors.quantity)} aria-describedby={fieldErrors.quantity ? "rfq-quantity-error" : undefined} />{fieldErrors.quantity && <span className="field-error" id="rfq-quantity-error" aria-live="polite">{fieldErrors.quantity}</span>}</label>
                   <div className="full-span submit-row"><button className="primary-button" type="submit" disabled={submitting || loadingProducts || products.length === 0}>{submitting ? <LoaderCircle className="spin" size={16} /> : <FilePlus2 size={16} />}{submitting ? "Mengirim permintaan…" : "Kirim permintaan"}<ArrowUpRight size={16} /></button><span>Data contoh untuk MVP</span></div>
                 </form>
-                {trackingCode && <div className="success-box" role="status"><span className="success-mark"><Check size={16} /></span><div className="success-content"><strong>Permintaan tersimpan</strong><span>Simpan kode rahasia ini untuk melacak dari perangkat lain.</span><code>{trackingCode}</code></div><button className="copy-button" type="button" onClick={() => void copyCode()} aria-label="Salin kode pelacakan">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Tersalin" : "Salin"}</button></div>}
+                {trackingCode && <div className="success-box" role="status"><span className="success-mark"><Check size={16} /></span><div className="success-content"><strong>Permintaan tersimpan</strong><span>Simpan kode rahasia ini untuk melacak dari perangkat lain.</span><code>{trackingCode}</code><span className="copy-feedback" id="tracking-code-copy-notice" aria-live="polite">{trackingCodeCopyNotice}</span></div><button className="copy-button" type="button" onClick={() => void copyCode()} aria-label="Salin kode pelacakan" aria-describedby="tracking-code-copy-notice">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Tersalin" : "Salin"}</button></div>}
               </div>
               <aside className="workflow-aside">
                 <div className="aside-panel"><span className="aside-icon"><LockKeyhole size={17} /></span><p className="eyebrow">PRIVASI KODE</p><h3>Kode pelacakan bersifat privat.</h3><p>Siapa pun yang memiliki kode dapat melihat status dan nama produk. Kode tidak menampilkan nama atau email pemohon.</p></div>
