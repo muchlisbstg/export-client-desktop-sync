@@ -26,6 +26,7 @@ import { formatComparisonCsv, formatComparisonShare, getComparisonFieldsToDispla
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 import { formatCatalogShare } from "./shared/catalog-share";
 import { filterOutComparedProducts } from "./shared/catalog-compare";
+import { formatCatalogCsv } from "./shared/catalog-csv";
 
 type Page = "overview" | "request" | "track" | "settings";
 type Connection = "checking" | "connected" | "offline";
@@ -95,6 +96,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [catalogShareNotice, setCatalogShareNotice] = useState("");
+  const [catalogCsvNotice, setCatalogCsvNotice] = useState("");
   const [comparisonShareNotice, setComparisonShareNotice] = useState("");
   const [comparisonCsvNotice, setComparisonCsvNotice] = useState("");
 
@@ -362,6 +364,17 @@ export default function App() {
                     }
                   }
 
+                  async function saveCatalogCsv() {
+                    try {
+                      const csv = formatCatalogCsv(visibleProducts);
+                      if (!csv) throw new Error("Tidak ada hasil katalog untuk disimpan.");
+                      const saved = await window.desktopApi.saveCatalogCsv(csv);
+                      setCatalogCsvNotice(saved ? "CSV katalog disimpan." : "Penyimpanan CSV dibatalkan.");
+                    } catch (caught) {
+                      setCatalogCsvNotice(messageFrom(caught, "CSV katalog tidak dapat disimpan."));
+                    }
+                  }
+
                   async function copyComparison() {
                     try {
                       const success = await window.desktopApi.copyText(formatComparisonShare(comparedProducts, visibleComparisonFields, differingComparisonFields));
@@ -433,7 +446,9 @@ export default function App() {
                         <div className="catalog-result-meta"><div className="catalog-result-status" role="status" aria-live="polite">{visibleProducts.length} dari {hideComparedProducts ? matchingProducts.length : products.length} {hideComparedProducts ? "hasil" : "produk"}</div><span className="catalog-compare-count" role="status" aria-live="polite">Pembanding: {comparedProducts.length}/{MAX_COMPARE_PRODUCTS}</span><button className={`catalog-hide-compared${hideComparedProducts ? " is-active" : ""}`} type="button" aria-pressed={hideComparedProducts} disabled={comparedProducts.length === 0 && !hideComparedProducts} onClick={() => setHideComparedProducts((current) => !current)}>{hideComparedProducts ? "Tampilkan yang dibandingkan" : "Sembunyikan yang dibandingkan"}</button></div>
                         <div className="catalog-share-actions">
                           <button className="catalog-share-button" type="button" onClick={() => void copyCatalogResults()} disabled={visibleProducts.length === 0} aria-label="Salin hasil katalog yang sedang ditampilkan"><Copy size={13} />Salin hasil</button>
+                          <button className="catalog-share-button" type="button" onClick={() => void saveCatalogCsv()} disabled={visibleProducts.length === 0} aria-label="Simpan hasil katalog yang sedang ditampilkan sebagai CSV"><FilePlus2 size={13} />Simpan CSV</button>
                           {catalogShareNotice && <span className="catalog-share-notice" role="status" aria-live="polite">{catalogShareNotice}</span>}
+                          {catalogCsvNotice && <span className="catalog-share-notice" role="status" aria-live="polite">{catalogCsvNotice}</span>}
                         </div>
                       </div>
                       {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>{hideComparedProducts && matchingProducts.length > 0 ? "Semua hasil sudah dibandingkan" : "Tidak ada produk yang cocok"}</span><button className="text-button" type="button" onClick={() => hideComparedProducts && matchingProducts.length > 0 ? setHideComparedProducts(false) : (() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); setCatalogUnit(""); catalogSearchRef.current?.focus(); })()}>{hideComparedProducts && matchingProducts.length > 0 ? "Tampilkan semua hasil" : "Hapus filter"}</button></div> : (

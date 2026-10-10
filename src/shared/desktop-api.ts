@@ -13,6 +13,7 @@ export type DesktopApi = {
   trackInquiry(baseUrl: string, code: string): Promise<InquiryStatus>;
   copyText(value: string): Promise<boolean>;
   saveComparisonCsv(value: string): Promise<boolean>;
+  saveCatalogCsv(value: string): Promise<boolean>;
 };
 
 declare global {

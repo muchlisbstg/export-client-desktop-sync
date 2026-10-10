@@ -8,6 +8,7 @@ const desktopApi: DesktopApi = {
   trackInquiry: (baseUrl, code) => ipcRenderer.invoke("api:track-inquiry", baseUrl, code),
   copyText: (value) => ipcRenderer.invoke("app:copy-text", value),
   saveComparisonCsv: (value) => ipcRenderer.invoke("app:save-comparison-csv", value),
+  saveCatalogCsv: (value) => ipcRenderer.invoke("app:save-catalog-csv", value),
 };
 
 contextBridge.exposeInMainWorld("desktopApi", desktopApi);
