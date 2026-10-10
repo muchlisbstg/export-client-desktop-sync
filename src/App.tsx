@@ -20,7 +20,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import type { InquiryStatus, Product } from "./shared/api-types";
+import type { InquiryStatus, Product, SyncStatus } from "./shared/api-types";
 import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { formatComparisonCsv, formatComparisonShare, getComparisonFieldsToDisplay, getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
@@ -74,6 +74,8 @@ export default function App() {
   const [draftApiUrl, setDraftApiUrl] = useState(() => localStorage.getItem(apiUrlStorageKey) || defaultApiUrl);
   const [connection, setConnection] = useState<Connection>("checking");
   const [products, setProducts] = useState<Product[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncStatusLoading, setSyncStatusLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
@@ -100,6 +102,18 @@ export default function App() {
   const [comparisonShareNotice, setComparisonShareNotice] = useState("");
   const [comparisonCsvNotice, setComparisonCsvNotice] = useState("");
 
+  const refreshSyncStatus = useCallback(async () => {
+    setSyncStatusLoading(true);
+    try {
+      const health = await window.desktopApi.getHealth(apiBaseUrl);
+      setSyncStatus(health.syncStatus ?? null);
+    } catch {
+      setSyncStatus(null);
+    } finally {
+      setSyncStatusLoading(false);
+    }
+  }, [apiBaseUrl]);
+
   const refresh = useCallback(async () => {
     setConnection("checking");
     setLoadingProducts(true);
@@ -111,10 +125,14 @@ export default function App() {
       ]);
       if (health.status !== "ok") throw new Error("API belum siap.");
       setProducts(result);
+      setSyncStatus(health.syncStatus ?? null);
+      setSyncStatusLoading(false);
       setForm((current) => ({ ...current, productId: current.productId || result[0]?.id || "" }));
       setConnection("connected");
     } catch (caught) {
       setConnection("offline");
+      setSyncStatus(null);
+      setSyncStatusLoading(false);
       setError(messageFrom(caught, "Koneksi ke API gagal."));
     } finally {
       setLoadingProducts(false);
@@ -178,6 +196,7 @@ export default function App() {
       setForm((current) => ({ ...initialForm, productId: current.productId }));
       setFieldErrors({});
       setNotice("Permintaan tersimpan pada backend yang terhubung.");
+      void refreshSyncStatus();
     } catch (caught) {
       setError(messageFrom(caught, "Permintaan gagal dikirim."));
     } finally {
@@ -324,6 +343,14 @@ export default function App() {
                 <article className="stat-card"><span className="stat-icon sage-icon"><Package size={17} /></span><div><small>KATALOG AKTIF</small><strong>{loadingProducts ? "—" : products.length.toString().padStart(2, "0")}</strong><span>produk demo tersedia</span></div><span className="stat-arrow"><ArrowUpRight size={15} /></span></article>
                 <article className="stat-card"><span className={`stat-icon ${connection === "connected" ? "green-icon" : "gray-icon"}`}>{connection === "connected" ? <Wifi size={17} /> : <WifiOff size={17} />}</span><div><small>KONEKSI API</small><strong>{connection === "connected" ? "Aktif" : connection === "checking" ? "Memeriksa" : "Offline"}</strong><span>{apiBaseUrl.replace(/^https?:\/\//, "")}</span></div><span className="stat-arrow"><ArrowUpRight size={15} /></span></article>
                 <article className="stat-card"><span className="stat-icon sand-icon"><Globe2 size={17} /></span><div><small>KLIEN TERHUBUNG</small><strong>03</strong><span>web · mobile · desktop</span></div><span className="stat-arrow"><ArrowUpRight size={15} /></span></article>
+              </section>
+
+              <section className="sync-status-card" aria-label="Status sinkronisasi peer-to-peer" role="status" aria-live="polite">
+                <div className="sync-status-copy"><small>SINKRONISASI PEER-TO-PEER</small><strong>{syncStatusLoading ? "Memeriksa status…" : !syncStatus ? "Status belum tersedia" : !syncStatus.enabled ? "Tidak diaktifkan" : syncStatus.peerCount > 0 ? `Diaktifkan · ${syncStatus.peerCount} peer dikonfigurasi` : "Diaktifkan · belum ada peer"}</strong>
+                  <span>{syncStatus ? `Antrean: ${syncStatus.pendingDeliveries} · Perlu coba ulang: ${syncStatus.retryingDeliveries} · Konflik: ${syncStatus.conflicts}` : "Ringkasan lokal; koneksi peer tidak diuji langsung."}</span>
+                  {syncStatus && <small className="sync-status-note">Ringkasan lokal; koneksi peer tidak diuji langsung.</small>}
+                </div>
+                <button type="button" onClick={() => void refreshSyncStatus()} disabled={syncStatusLoading}>Perbarui status</button>
               </section>
 
               <section className="section-block">

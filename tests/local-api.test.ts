@@ -65,7 +65,10 @@ async function waitForOutboxState(
 test("local health, catalog, create, and tracking match the shared API contract", async () => {
   const api = await boot();
   try {
-    assert.deepEqual(await (await fetch(`${api.url}/health`)).json(), { status: "ok", nodeId: "desktop-off", syncEnabled: false });
+    assert.deepEqual(await (await fetch(`${api.url}/health`)).json(), {
+      status: "ok", nodeId: "desktop-off", syncEnabled: false,
+      syncStatus: { enabled: false, peerCount: 0, pendingDeliveries: 0, retryingDeliveries: 0, conflicts: 0 },
+    });
     const products = (await (await fetch(`${api.url}/api/v1/products`)).json() as { data: Array<{ id: string }> }).data;
     assert.deepEqual(products.map((item) => item.id), ["cocoa-beans", "green-coffee", "dried-spices"]);
     const createdResponse = await fetch(`${api.url}/api/v1/inquiries`, {
@@ -159,6 +162,10 @@ test("persistent outbox resumes delivery after the peer returns and the node res
     assert(sourceRecord);
     const failedAttempt = await waitForOutboxState(source.db, sourceRecord.id, peerNodeId, (row) => (row?.attemptCount ?? 0) >= 1, "a persisted failed attempt");
     assert.ok((failedAttempt?.attemptCount ?? 0) >= 1);
+    const pendingStatus = await (await fetch(`${source.url}/health`)).json() as { syncStatus: { enabled: boolean; peerCount: number; pendingDeliveries: number; retryingDeliveries: number; conflicts: number; peerUrl?: string; lastError?: string } };
+    assert.deepEqual(pendingStatus.syncStatus, { enabled: true, peerCount: 1, pendingDeliveries: 1, retryingDeliveries: 1, conflicts: 0 });
+    assert.equal("peerUrl" in pendingStatus.syncStatus, false);
+    assert.equal("lastError" in pendingStatus.syncStatus, false);
 
     await source.close();
     sourceClosed = true;
@@ -179,6 +186,8 @@ test("persistent outbox resumes delivery after the peer returns and the node res
     const replicated = await waitForTracking(target.url, created.trackingCode);
     assert.equal(replicated.data.productName, "Kopi Arabika hijau");
     await waitForOutboxState(restarted.db, sourceRecord.id, peerNodeId, (row) => !row, "successful delivery and outbox removal");
+    const recoveredStatus = await (await fetch(`${restarted.url}/health`)).json() as { syncStatus: { pendingDeliveries: number } };
+    assert.equal(recoveredStatus.syncStatus.pendingDeliveries, 0);
   } finally {
     if (restarted) await cleanup(restarted);
     if (target) await cleanup(target);
@@ -291,6 +300,9 @@ test("peer replication is idempotent; conflicting payload is quarantined without
     assert.equal(collision?.reason, "tracking_code_collision");
     const preserved = nodeB.db.prepare("SELECT customer_name FROM inquiries WHERE id=?").get(record.id) as { customer_name: string } | undefined;
     assert.equal(preserved?.customer_name, "Original Client");
+    const syncStatus = await (await fetch(`${nodeB.url}/health`)).json() as { syncStatus: { conflicts: number; pendingDeliveries: number } };
+    assert.equal(syncStatus.syncStatus.conflicts, 2);
+    assert.equal(syncStatus.syncStatus.pendingDeliveries, 0);
   } finally { await cleanup(nodeA); await cleanup(nodeB); }
 });
 
