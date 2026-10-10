@@ -64,13 +64,14 @@ export function getFacetCounts<T extends Pick<Product, CatalogFacetField>>(
 }
 
 export function filterProducts(products: readonly Product[], query = "", selectedCategory = "", selectedOrigin = "", selectedUnit = ""): Product[] {
-  const normalizedQuery = normalizeForSearch(query);
+  const queryTerms = normalizeForSearch(query).split(/\s+/u).filter(Boolean);
   return products.filter((product) => {
     const matchesCategory = selectedCategory === "" || product.category === selectedCategory;
     const matchesOrigin = selectedOrigin === "" || product.origin === selectedOrigin;
     const matchesUnit = selectedUnit === "" || product.unit === selectedUnit;
     const searchable = normalizeForSearch([product.name, product.category, product.origin, product.unit].filter(Boolean).join(" "));
-    return matchesCategory && matchesOrigin && matchesUnit && (!normalizedQuery || searchable.includes(normalizedQuery));
+    const matchesQuery = queryTerms.every((term) => searchable.includes(term));
+    return matchesCategory && matchesOrigin && matchesUnit && matchesQuery;
   });
 }
 
