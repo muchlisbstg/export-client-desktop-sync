@@ -8,6 +8,71 @@ export function normalizeForSearch(value: string | null | undefined): string {
     .trim();
 }
 
+export type CatalogSearchHighlightPart = { text: string; matched: boolean };
+
+/** Split display text into matching and non-matching parts using the catalog's search rules. */
+export function getCatalogSearchHighlightParts(value: string, query: string): CatalogSearchHighlightPart[] {
+  const source = String(value ?? "");
+  if (!source) return [];
+
+  const terms = normalizeForSearch(query).split(/\s+/u).filter(Boolean);
+  if (terms.length === 0) return [{ text: source, matched: false }];
+
+  const normalizedParts: string[] = [];
+  const sourceStarts: number[] = [];
+  const sourceEnds: number[] = [];
+  let sourceOffset = 0;
+  for (const character of source) {
+    const unmarked = character.normalize("NFD").replace(/\p{M}/gu, "");
+    if (unmarked.length === 0 && /\p{M}/u.test(character) && sourceEnds.length > 0) {
+      sourceEnds[sourceEnds.length - 1] = sourceOffset + character.length;
+    }
+    for (const codePoint of unmarked) {
+      normalizedParts.push(codePoint);
+      for (let unit = 0; unit < codePoint.length; unit += 1) {
+        sourceStarts.push(sourceOffset);
+        sourceEnds.push(sourceOffset + character.length);
+      }
+    }
+    sourceOffset += character.length;
+  }
+
+  const normalizedSource = normalizedParts.join("").toLocaleLowerCase("id-ID");
+  if (normalizedSource.length !== sourceStarts.length) return [{ text: source, matched: false }];
+
+  const ranges: Array<[number, number]> = [];
+  for (const term of terms) {
+    let searchFrom = 0;
+    while (searchFrom < normalizedSource.length) {
+      const matchAt = normalizedSource.indexOf(term, searchFrom);
+      if (matchAt < 0) break;
+      const start = sourceStarts[matchAt];
+      const end = sourceEnds[matchAt + term.length - 1];
+      if (start !== undefined && end !== undefined) ranges.push([start, end]);
+      searchFrom = matchAt + 1;
+    }
+  }
+
+  if (ranges.length === 0) return [{ text: source, matched: false }];
+  ranges.sort(([left], [right]) => left - right);
+  const mergedRanges: Array<[number, number]> = [];
+  for (const [start, end] of ranges) {
+    const previous = mergedRanges[mergedRanges.length - 1];
+    if (previous && start <= previous[1]) previous[1] = Math.max(previous[1], end);
+    else mergedRanges.push([start, end]);
+  }
+
+  const parts: CatalogSearchHighlightPart[] = [];
+  let cursor = 0;
+  for (const [start, end] of mergedRanges) {
+    if (start > cursor) parts.push({ text: source.slice(cursor, start), matched: false });
+    if (end > cursor) parts.push({ text: source.slice(Math.max(cursor, start), end), matched: true });
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < source.length) parts.push({ text: source.slice(cursor), matched: false });
+  return parts;
+}
+
 export type CatalogSortField = "default" | "name" | "category" | "origin" | "unit";
 export type CatalogSortDirection = "asc" | "desc";
 
