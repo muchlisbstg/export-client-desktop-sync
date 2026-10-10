@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product } from "./shared/api-types";
-import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { formatComparisonCsv, formatComparisonShare, getComparisonFieldsToDisplay, getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 import { formatCatalogShare } from "./shared/catalog-share";
@@ -77,6 +77,7 @@ export default function App() {
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogOrigin, setCatalogOrigin] = useState("");
+  const [catalogUnit, setCatalogUnit] = useState("");
   const [catalogSortField, setCatalogSortField] = useState<CatalogSortField>("default");
   const [catalogSortDirection, setCatalogSortDirection] = useState<CatalogSortDirection>("asc");
   const [compareProductIds, setCompareProductIds] = useState<string[]>([]);
@@ -333,13 +334,16 @@ export default function App() {
                 ) : <div className="empty-state">Belum ada produk di katalog.</div> : (() => {
                   const categories = getCategories(products);
                   const origins = getOrigins(products);
-                  const categoryFacetProducts = filterProducts(products, catalogQuery, "", catalogOrigin);
-                  const originFacetProducts = filterProducts(products, catalogQuery, catalogCategory, "");
+                  const units = getUnits(products);
+                  const categoryFacetProducts = filterProducts(products, catalogQuery, "", catalogOrigin, catalogUnit);
+                  const originFacetProducts = filterProducts(products, catalogQuery, catalogCategory, "", catalogUnit);
+                  const unitFacetProducts = filterProducts(products, catalogQuery, catalogCategory, catalogOrigin);
                   const categoryFacetCounts = getFacetCounts(categoryFacetProducts, "category");
                   const originFacetCounts = getFacetCounts(originFacetProducts, "origin");
-                  const matchingProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin), catalogSortField, catalogSortDirection);
+                  const unitFacetCounts = getFacetCounts(unitFacetProducts, "unit");
+                  const matchingProducts = sortProducts(filterProducts(products, catalogQuery, catalogCategory, catalogOrigin, catalogUnit), catalogSortField, catalogSortDirection);
                   const visibleProducts = hideComparedProducts ? filterOutComparedProducts(matchingProducts, compareProductIds) : matchingProducts;
-                  const activeCatalogFilters = getActiveCatalogFilters(catalogQuery, catalogCategory, catalogOrigin);
+                  const activeCatalogFilters = getActiveCatalogFilters(catalogQuery, catalogCategory, catalogOrigin, catalogUnit);
                   const filtersActive = activeCatalogFilters.length > 0;
 
                   async function copyCatalogResults() {
@@ -348,6 +352,7 @@ export default function App() {
                         query: catalogQuery,
                         category: catalogCategory,
                         origin: catalogOrigin,
+                        unit: catalogUnit,
                         sortField: catalogSortField,
                         sortDirection: catalogSortDirection,
                       }));
@@ -401,6 +406,13 @@ export default function App() {
                             {origins.map((origin) => <button className={`catalog-chip${catalogOrigin === origin ? " is-selected" : ""}`} key={origin} type="button" aria-pressed={catalogOrigin === origin} onClick={() => setCatalogOrigin(origin)}>{origin} ({originFacetCounts.get(origin) ?? 0})</button>)}
                           </div>
                         </div>
+                        <div className="catalog-filter-group" aria-label="Satuan produk">
+                          <span className="catalog-filter-label">Satuan</span>
+                          <div className="catalog-chips">
+                            <button className={`catalog-chip${catalogUnit === "" ? " is-selected" : ""}`} type="button" aria-pressed={catalogUnit === ""} onClick={() => setCatalogUnit("")}>Semua satuan ({unitFacetProducts.length})</button>
+                            {units.map((unit) => <button className={`catalog-chip${catalogUnit === unit ? " is-selected" : ""}`} key={unit} type="button" aria-pressed={catalogUnit === unit} onClick={() => setCatalogUnit(unit)}>{unit} ({unitFacetCounts.get(unit) ?? 0})</button>)}
+                          </div>
+                        </div>
                         <div className="catalog-filter-group catalog-sort-group" aria-label="Urutkan katalog">
                           <span className="catalog-filter-label">Urutkan</span>
                           <div className="catalog-chips">
@@ -408,13 +420,13 @@ export default function App() {
                             {catalogSortField !== "default" && <button className={`catalog-chip${catalogSortDirection === "desc" ? " is-selected" : ""}`} type="button" aria-pressed={catalogSortDirection === "desc"} aria-label={`Urutan ${catalogSortDirection === "asc" ? "A sampai Z" : "Z sampai A"}; ubah ke ${catalogSortDirection === "asc" ? "Z sampai A" : "A sampai Z"}`} onClick={() => setCatalogSortDirection((direction) => direction === "asc" ? "desc" : "asc")}>{catalogSortDirection === "asc" ? "A–Z" : "Z–A"}</button>}
                           </div>
                         </div>
-                        {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
+                        {filtersActive && <button className="catalog-reset" type="button" onClick={() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); setCatalogUnit(""); catalogSearchRef.current?.focus(); }}>Reset filter</button>}
                       </div>
                       {activeCatalogFilters.length > 0 && <div className="catalog-active-filters" role="group" aria-label="Filter aktif">
                         <span className="catalog-active-label">Filter aktif</span>
                         {activeCatalogFilters.map((filter) => {
-                          const label = filter.key === "search" ? "Pencarian" : filter.key === "category" ? "Kategori" : "Asal";
-                          return <span className="catalog-active-chip" key={filter.key}><span>{label}: {filter.value}</span><button type="button" aria-label={`Hapus filter ${label.toLowerCase()}: ${filter.value}`} onClick={() => { if (filter.key === "search") setCatalogQuery(""); else if (filter.key === "category") setCatalogCategory(""); else setCatalogOrigin(""); }}>×</button></span>;
+                          const label = filter.key === "search" ? "Pencarian" : filter.key === "category" ? "Kategori" : filter.key === "origin" ? "Asal" : "Satuan";
+                          return <span className="catalog-active-chip" key={filter.key}><span>{label}: {filter.value}</span><button type="button" aria-label={`Hapus filter ${label.toLowerCase()}: ${filter.value}`} onClick={() => { if (filter.key === "search") setCatalogQuery(""); else if (filter.key === "category") setCatalogCategory(""); else if (filter.key === "origin") setCatalogOrigin(""); else setCatalogUnit(""); }}>×</button></span>;
                         })}
                       </div>}
                       <div className="catalog-result-toolbar">
@@ -424,7 +436,7 @@ export default function App() {
                           {catalogShareNotice && <span className="catalog-share-notice" role="status" aria-live="polite">{catalogShareNotice}</span>}
                         </div>
                       </div>
-                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>{hideComparedProducts && matchingProducts.length > 0 ? "Semua hasil sudah dibandingkan" : "Tidak ada produk yang cocok"}</span><button className="text-button" type="button" onClick={() => hideComparedProducts && matchingProducts.length > 0 ? setHideComparedProducts(false) : (() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); catalogSearchRef.current?.focus(); })()}>{hideComparedProducts && matchingProducts.length > 0 ? "Tampilkan semua hasil" : "Hapus filter"}</button></div> : (
+                      {visibleProducts.length === 0 ? <div className="empty-state filter-empty"><span>{hideComparedProducts && matchingProducts.length > 0 ? "Semua hasil sudah dibandingkan" : "Tidak ada produk yang cocok"}</span><button className="text-button" type="button" onClick={() => hideComparedProducts && matchingProducts.length > 0 ? setHideComparedProducts(false) : (() => { setCatalogQuery(""); setCatalogCategory(""); setCatalogOrigin(""); setCatalogUnit(""); catalogSearchRef.current?.focus(); })()}>{hideComparedProducts && matchingProducts.length > 0 ? "Tampilkan semua hasil" : "Hapus filter"}</button></div> : (
                         <div className="product-grid">
                           {visibleProducts.map((product, index) => {
                             const isCompared = compareProductIds.includes(product.id);
