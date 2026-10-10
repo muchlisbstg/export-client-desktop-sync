@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts } from "../src/shared/catalog-filter";
+import { filterProducts, getActiveCatalogFilters, getCatalogSearchHighlightParts, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts } from "../src/shared/catalog-filter";
 import { MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "../src/shared/catalog-compare";
 import type { Product } from "../src/shared/api-types";
 
@@ -34,6 +34,24 @@ test("pencarian multi-kata mencocokkan semua token lintas atribut tanpa bergantu
   assert.deepEqual(ids(filterProducts(products, "kering vietnam rempah")), ["spices"]);
   assert.deepEqual(ids(filterProducts(products, "kopi vietnam")), []);
   assert.deepEqual(ids(filterProducts(products, "   ")), ids(products));
+});
+
+test("sorotan pencarian mengikuti pencocokan multi-kata tanpa membedakan aksen atau kapitalisasi", () => {
+  assert.deepEqual(getCatalogSearchHighlightParts("Café Arabica", "  ARABICA cafe "), [
+    { text: "Café", matched: true },
+    { text: " ", matched: false },
+    { text: "Arabica", matched: true },
+  ]);
+  assert.deepEqual(getCatalogSearchHighlightParts("Cafe\u0301", "cafe"), [{ text: "Cafe\u0301", matched: true }]);
+});
+
+test("sorotan mempertahankan teks yang tidak cocok dan menggabungkan rentang token tumpang tindih", () => {
+  assert.deepEqual(getCatalogSearchHighlightParts("Robusta", "café"), [{ text: "Robusta", matched: false }]);
+  assert.deepEqual(getCatalogSearchHighlightParts("banana", "ana na"), [
+    { text: "b", matched: false },
+    { text: "anana", matched: true },
+  ]);
+  assert.deepEqual(getCatalogSearchHighlightParts("Robusta", "   "), [{ text: "Robusta", matched: false }]);
 });
 
 test("kategori unik dinamis dan terurut locale Indonesia", () => {

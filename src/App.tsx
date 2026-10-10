@@ -21,7 +21,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { InquiryStatus, Product, SyncStatus } from "./shared/api-types";
-import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
+import { catalogSortOptions, filterProducts, getActiveCatalogFilters, getCatalogSearchHighlightParts, getCategories, getFacetCounts, getOrigins, getUnits, sortProducts, type CatalogSortDirection, type CatalogSortField } from "./shared/catalog-filter";
 import { formatComparisonCsv, formatComparisonShare, getComparisonFieldsToDisplay, getDifferingComparisonFields, MAX_COMPARE_PRODUCTS, toggleCompareSelection } from "./shared/catalog-compare";
 import { validateInquiryField, validateInquiryForm, type InquiryField, type InquiryFieldErrors } from "./shared/rfq-validation";
 import { formatCatalogShare } from "./shared/catalog-share";
@@ -48,6 +48,13 @@ function messageFrom(error: unknown, fallback: string): string {
 
 function formatDate(date: string): string {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
+}
+
+function CatalogSearchHighlight({ value, query }: { value: string; query: string }) {
+  const parts = getCatalogSearchHighlightParts(value, query);
+  return <>{parts.map((part, index) => part.matched
+    ? <mark key={index} style={{ backgroundColor: "#f2e7a4", color: "inherit", borderRadius: 2 }}>{part.text}</mark>
+    : <span key={index}>{part.text}</span>)}</>;
 }
 
 function NavigationButton({
@@ -495,8 +502,8 @@ export default function App() {
                             const isCompared = compareProductIds.includes(product.id);
                             return <article className="product-card" key={product.id}>
                               <button className="product-card-main" type="button" onClick={() => { setForm((current) => ({ ...current, productId: product.id })); goTo("request"); }}>
-                                <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin">{product.origin}</span><span className="product-orbit" /></span>
-                                <span className="product-info"><small>{product.category}</small><strong>{product.name}</strong><span>Asal {product.origin}<i>·</i> per {product.unit}</span></span>
+                                <span className={`product-art product-art-${index % 3}`}><span className="product-index">{String(index + 1).padStart(2, "0")}</span><span className="product-origin"><CatalogSearchHighlight value={product.origin} query={catalogQuery} /></span><span className="product-orbit" /></span>
+                                <span className="product-info"><small><CatalogSearchHighlight value={product.category} query={catalogQuery} /></small><strong><CatalogSearchHighlight value={product.name} query={catalogQuery} /></strong><span>Asal <CatalogSearchHighlight value={product.origin} query={catalogQuery} /><i>·</i> per <CatalogSearchHighlight value={product.unit} query={catalogQuery} /></span></span>
                                 <span className="product-arrow"><ArrowUpRight size={15} /></span>
                               </button>
                               <button className={`compare-toggle${isCompared ? " is-selected" : ""}`} type="button" aria-pressed={isCompared} disabled={!isCompared && compareProductIds.length >= MAX_COMPARE_PRODUCTS} onClick={() => toggleCompare(product.id)}>{isCompared ? "✓ Ditambahkan" : "Bandingkan"}</button>
