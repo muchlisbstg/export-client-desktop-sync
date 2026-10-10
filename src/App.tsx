@@ -437,9 +437,9 @@ export default function App() {
                     <>
                       <div className="catalog-controls" aria-label="Filter katalog">
                         <div className="catalog-search-wrap">
-                          <label htmlFor="catalog-search">Cari nama, kategori, atau asal</label>
+                          <label htmlFor="catalog-search">Cari nama, kategori, asal, atau satuan</label>
                           <div className="catalog-search-row">
-                            <input ref={catalogSearchRef} id="catalog-search" type="search" value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Contoh: kopi atau Indonesia" />
+                            <input ref={catalogSearchRef} id="catalog-search" type="search" value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Contoh: kopi, Indonesia, atau kg" />
                             {catalogQuery && <button className="catalog-clear" type="button" onClick={() => { setCatalogQuery(""); catalogSearchRef.current?.focus(); }} aria-label="Bersihkan pencarian">×</button>}
                           </div>
                         </div>

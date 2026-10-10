@@ -69,7 +69,7 @@ export function filterProducts(products: readonly Product[], query = "", selecte
     const matchesCategory = selectedCategory === "" || product.category === selectedCategory;
     const matchesOrigin = selectedOrigin === "" || product.origin === selectedOrigin;
     const matchesUnit = selectedUnit === "" || product.unit === selectedUnit;
-    const searchable = normalizeForSearch(`${product.name} ${product.category} ${product.origin}`);
+    const searchable = normalizeForSearch([product.name, product.category, product.origin, product.unit].filter(Boolean).join(" "));
     return matchesCategory && matchesOrigin && matchesUnit && (!normalizedQuery || searchable.includes(normalizedQuery));
   });
 }
