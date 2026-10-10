@@ -29,6 +29,13 @@ test("pencarian menormalkan aksen Unicode", () => {
   assert.deepEqual(ids(filterProducts(accented, "cafe")), ["coffee"]);
 });
 
+test("pencarian multi-kata mencocokkan semua token lintas atribut tanpa bergantung urutan", () => {
+  assert.deepEqual(ids(filterProducts(products, "KG indonesia KOPI")), ["coffee"]);
+  assert.deepEqual(ids(filterProducts(products, "kering vietnam rempah")), ["spices"]);
+  assert.deepEqual(ids(filterProducts(products, "kopi vietnam")), []);
+  assert.deepEqual(ids(filterProducts(products, "   ")), ids(products));
+});
+
 test("kategori unik dinamis dan terurut locale Indonesia", () => {
   const dynamic = [...products, { ...products[0], id: "tea", category: "Teh" }];
   assert.deepEqual(getCategories(dynamic), ["Kakao", "Kopi", "Rempah", "Teh"]);
