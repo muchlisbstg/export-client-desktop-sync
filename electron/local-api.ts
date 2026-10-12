@@ -152,6 +152,7 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
   app.use(express.json({ limit: "16kb" }));
   const createLimit = rateLimiter(Number(process.env.RFQ_LIMIT_PER_15M) || 10);
   const trackLimit = rateLimiter(Number(process.env.TRACK_LOOKUP_LIMIT_PER_15M) || 60);
+  const authLimit = rateLimiter(Number(process.env.AUTH_LIMIT_PER_15M) || 120);
   const insertInquiry = db.prepare(`INSERT INTO inquiries
     (id,tracking_code,customer_name,customer_email,destination_country,product_id,quantity,unit,status,created_at,origin_node_id)
     VALUES (@id,@trackingCode,@customerName,@customerEmail,@destinationCountry,@productId,@quantity,@unit,@status,@createdAt,@originNodeId)`);
@@ -247,11 +248,11 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
     url: options.supabaseUrl, anonKey: options.supabaseAnonKey,
     adminUserIds: options.adminUserIds, fetcher: options.authFetcher,
   });
-  app.get("/api/v1/auth/session", auth.authenticate, (_req, res) => {
+  app.get("/api/v1/auth/session", authLimit, auth.authenticate, (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     return res.json({ user: res.locals.authIdentity });
   });
-  app.get("/api/v1/admin/session", auth.authenticate, auth.requireAdmin, (_req, res) => {
+  app.get("/api/v1/admin/session", authLimit, auth.authenticate, auth.requireAdmin, (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     return res.json({ ok: true, user: res.locals.authIdentity });
   });
