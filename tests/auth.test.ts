@@ -27,7 +27,7 @@ test("verified ID allowlist grants admin; client metadata is ignored", async () 
     url: "https://auth.example.test", anonKey: "public-test-key", adminUserIds: ["admin-uuid"],
     fetcher: async (url, init) => {
       assert.equal(url, "https://auth.example.test/auth/v1/user");
-      assert.equal(init.headers.Authorization, "Bearer good-token");
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer good-token");
       return new Response(JSON.stringify({ id: "admin-uuid", user_metadata: { role: "customer" } }), { status: 200 });
     },
   });
@@ -40,7 +40,7 @@ test("verified ID allowlist grants admin; client metadata is ignored", async () 
 test("customer and invalid tokens cannot access admin route", async () => {
   const app = await startApp({
     url: "https://auth.example.test", anonKey: "public-test-key", adminUserIds: ["admin-uuid"],
-    fetcher: async (_url, init) => init.headers.Authorization.endsWith("expired")
+    fetcher: async (_url, init) => String(new Headers(init?.headers).get("authorization")).endsWith("expired")
       ? new Response("{}", { status: 401 })
       : new Response(JSON.stringify({ id: "customer-uuid", user_metadata: { role: "admin" } }), { status: 200 }),
   });
