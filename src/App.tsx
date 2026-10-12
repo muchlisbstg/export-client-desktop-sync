@@ -109,6 +109,37 @@ export default function App() {
   const [catalogCsvNotice, setCatalogCsvNotice] = useState("");
   const [comparisonShareNotice, setComparisonShareNotice] = useState("");
   const [comparisonCsvNotice, setComparisonCsvNotice] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authAccessToken, setAuthAccessToken] = useState("");
+  const [authRole, setAuthRole] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+
+  async function signInAdmin() {
+    const authUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+    if (!authUrl || !anonKey) { setAuthMessage("Login belum dikonfigurasi: isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY."); return; }
+    setAuthBusy(true); setAuthMessage("");
+    try {
+      const login = await fetch(`${authUrl.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`, {
+        method: "POST", headers: { "Content-Type": "application/json", apikey: anonKey },
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
+      });
+      const loginBody = await login.json().catch(() => ({}));
+      if (!login.ok || !loginBody.access_token) throw new Error(loginBody.error_description || loginBody.msg || "Login gagal.");
+      const session = await fetch(`${apiBaseUrl}/api/v1/auth/session`, { headers: { Authorization: `Bearer ${loginBody.access_token}` } });
+      const sessionBody = await session.json().catch(() => ({}));
+      if (!session.ok || !sessionBody.user) throw new Error(sessionBody.error || "Backend menolak sesi.");
+      setAuthAccessToken(loginBody.access_token); setAuthRole(sessionBody.user.role); setAuthPassword("");
+      if (sessionBody.user.role === "admin") {
+        const admin = await fetch(`${apiBaseUrl}/api/v1/admin/session`, { headers: { Authorization: `Bearer ${loginBody.access_token}` } });
+        if (!admin.ok) throw new Error("Backend tidak mengizinkan peran admin.");
+        setAuthMessage("Sesi admin diverifikasi oleh backend.");
+      } else setAuthMessage("Login berhasil, tetapi akun ini tidak memiliki peran admin.");
+    } catch (caught) { setAuthAccessToken(""); setAuthRole(""); setAuthMessage(caught instanceof Error ? caught.message : "Login gagal."); }
+    finally { setAuthBusy(false); }
+  }
 
   const refreshSyncStatus = useCallback(async () => {
     setSyncStatusLoading(true);
@@ -289,6 +320,16 @@ export default function App() {
           <NavigationButton active={page === "request"} icon={<FilePlus2 size={17} />} label="Permintaan baru" onClick={() => goTo("request")} />
           <NavigationButton active={page === "track"} icon={<Clipboard size={17} />} label="Lacak permintaan" onClick={() => goTo("track")} />
         </nav>
+        <section aria-label="Login admin" style={{ marginTop: 18, padding: 12, borderRadius: 12, background: "#f4f7f2", border: "1px solid #dfe5de" }}>
+          <strong style={{ display: "block", marginBottom: 8 }}>Akses admin</strong>
+          {authAccessToken ? <p style={{ fontSize: 12 }}>Sesi aktif · {authRole}</p> : null}
+          <input aria-label="Email admin" type="email" autoComplete="username" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email" style={{ width: "100%", boxSizing: "border-box", marginBottom: 6, padding: 8, borderRadius: 7, border: "1px solid #cfd8d0" }} />
+          <input aria-label="Password admin" type="password" autoComplete="current-password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" style={{ width: "100%", boxSizing: "border-box", marginBottom: 6, padding: 8, borderRadius: 7, border: "1px solid #cfd8d0" }} />
+          <button type="button" disabled={authBusy} onClick={() => void signInAdmin()} style={{ width: "100%", padding: 9, border: 0, borderRadius: 7, background: "#194b3c", color: "#fff" }}>{authBusy ? "Memeriksa…" : "Masuk"}</button>
+          {authAccessToken ? <button type="button" onClick={() => { setAuthAccessToken(""); setAuthRole(""); setAuthMessage("Sesi dihapus dari memori."); }} style={{ width: "100%", marginTop: 6, padding: 8 }}>Keluar</button> : null}
+          {authMessage ? <p role="status" style={{ fontSize: 11, lineHeight: 1.4 }}>{authMessage}</p> : null}
+          <small style={{ display: "block", marginTop: 6, lineHeight: 1.4 }}>Token hanya di memori UI; backend memutuskan akses admin.</small>
+        </section>
 
         <div className="nav-label connections-label">TERHUBUNG</div>
         <div className="connected-apps">
