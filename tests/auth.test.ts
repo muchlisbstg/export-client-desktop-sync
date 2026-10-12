@@ -4,14 +4,16 @@ import express from "express";
 import http from "node:http";
 import { createSupabaseAuth } from "../electron/auth";
 
-async function startApp(options) {
+async function startApp(options: Parameters<typeof createSupabaseAuth>[0]) {
   const app = express();
   const auth = createSupabaseAuth(options);
   app.get("/session", auth.authenticate, (_req, res) => res.json({ user: res.locals.authIdentity }));
   app.get("/admin", auth.authenticate, auth.requireAdmin, (_req, res) => res.json({ ok: true }));
   const server = http.createServer(app);
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  return { url: `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`, close: () => new Promise((resolve) => server.close(resolve)) };
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Test server did not bind to a TCP port");
+  return { url: `http://127.0.0.1:${address.port}`, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
 }
 
 test("auth fails closed when provider is not configured", async () => {
