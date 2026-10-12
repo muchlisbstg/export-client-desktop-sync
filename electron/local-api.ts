@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { mkdirSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { createSupabaseAuth } from "./auth";
 import type { AddressInfo } from "node:net";
 
 export type InquiryRecord = {
@@ -20,7 +21,7 @@ export type InquiryRecord = {
   originNodeId: string;
 };
 export type Peer = { nodeId: string; url: string };
-export type LocalApiOptions = { dbPath: string; port?: number; host?: string; nodeId?: string; sharedSecret?: string; peers?: Peer[]; webOrigins?: string[]; fetcher?: typeof fetch };
+export type LocalApiOptions = { dbPath: string; port?: number; host?: string; nodeId?: string; sharedSecret?: string; peers?: Peer[]; webOrigins?: string[]; fetcher?: typeof fetch; supabaseUrl?: string; supabaseAnonKey?: string; adminUserIds?: string[]; authFetcher?: typeof fetch };
 
 const PRODUCTS = [
   { id: "green-coffee", name: "Kopi Arabika hijau", category: "Kopi", origin: "Indonesia", unit: "kg" },
@@ -241,6 +242,19 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
       flushing = false;
     }
   }
+
+  const auth = createSupabaseAuth({
+    url: options.supabaseUrl, anonKey: options.supabaseAnonKey,
+    adminUserIds: options.adminUserIds, fetcher: options.authFetcher,
+  });
+  app.get("/api/v1/auth/session", auth.authenticate, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ user: res.locals.authIdentity });
+  });
+  app.get("/api/v1/admin/session", auth.authenticate, auth.requireAdmin, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ok: true, user: res.locals.authIdentity });
+  });
 
   app.get("/health", (_req, res) => {
     db.prepare("SELECT 1").get();
