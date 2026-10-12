@@ -122,7 +122,7 @@ export default function App() {
     if (!authUrl || !anonKey) { setAuthMessage("Login belum dikonfigurasi: isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY."); return; }
     setAuthBusy(true); setAuthMessage("");
     try {
-      const login = await fetch(`${authUrl.replace(/\\/+$/, "")}/auth/v1/token?grant_type=password`, {
+      const login = await fetch(`${authUrl.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`, {
         method: "POST", headers: { "Content-Type": "application/json", apikey: anonKey },
         body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
       });
