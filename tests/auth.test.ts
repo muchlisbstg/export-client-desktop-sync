@@ -49,3 +49,41 @@ test("customer and invalid tokens cannot access admin route", async () => {
     assert.equal((await fetch(`${app.url}/admin`, { headers: { Authorization: "Bearer expired" } })).status, 401);
   } finally { await app.close(); }
 });
+
+test("missing bearer token is rejected without calling the identity provider", async () => {
+  let providerCalls = 0;
+  const app = await startApp({
+    url: "https://auth.example.test",
+    anonKey: "public-test-key",
+    fetcher: async () => {
+      providerCalls += 1;
+      return new Response(JSON.stringify({ id: "customer-uuid" }), { status: 200 });
+    },
+  });
+  try {
+    const response = await fetch(`${app.url}/session`);
+    assert.equal(response.status, 401);
+    assert.equal(providerCalls, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test("identity provider outage fails closed with service unavailable", async () => {
+  const app = await startApp({
+    url: "https://auth.example.test",
+    anonKey: "public-test-key",
+    fetcher: async () => {
+      throw new Error("simulated provider outage");
+    },
+  });
+  try {
+    const response = await fetch(`${app.url}/session`, {
+      headers: { Authorization: "Bearer token-during-outage" },
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "identity_provider_unavailable" });
+  } finally {
+    await app.close();
+  }
+});
