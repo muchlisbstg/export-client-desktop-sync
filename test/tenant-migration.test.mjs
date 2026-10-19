@@ -131,3 +131,27 @@ test("tenant synchronization outbox persists retryable events across database re
     fs.rmSync(directory,{recursive:true,force:true});
   }
 });
+
+test("migration upgrades an earlier outbox schema without losing pending events", () => {
+  const db = new Database(":memory:");
+  try {
+    db.exec(`
+      CREATE TABLE inquiries (id TEXT PRIMARY KEY);
+      CREATE TABLE tenant_sync_outbox (
+        event_id TEXT PRIMARY KEY, peer_node_id TEXT NOT NULL, peer_url TEXT NOT NULL,
+        event_type TEXT NOT NULL, aggregate_id TEXT NOT NULL, payload_json TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at_ms INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT, created_at TEXT NOT NULL, delivered_at TEXT,
+        UNIQUE(event_id,peer_node_id)
+      );
+      INSERT INTO tenant_sync_outbox(event_id,peer_node_id,peer_url,event_type,aggregate_id,payload_json,created_at)
+      VALUES ('old-event','peer-a','https://peer.example.test','transaction.upsert','txn-old','{}','2026-01-01T00:00:00.000Z');
+    `);
+    migrateTenantIsolation(db);
+    const row = db.prepare("SELECT event_id,queue_seq,delivered_at FROM tenant_sync_outbox WHERE event_id='old-event'").get();
+    assert.equal(row.event_id,"old-event");
+    assert.equal(typeof row.queue_seq,"number");
+    assert.equal(row.delivered_at,null);
+    assert.doesNotThrow(() => migrateTenantIsolation(db));
+  } finally { db.close(); }
+});
