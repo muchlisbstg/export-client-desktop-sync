@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:net";
 import { parsePeers, startLocalApi } from "../electron/local-api";
+import { migrateTenantIsolation } from "../scripts/migrate-tenant-isolation.mjs";
 
 const secret = "test-sync-secret-that-is-at-least-32-characters";
 type ApiResource = Awaited<ReturnType<typeof startLocalApi>> & { dir: string };
@@ -21,9 +22,13 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function boot({ nodeId = "desktop-off", port = 0, sharedSecret = "", peers = [] as { nodeId: string; url: string }[] } = {}) {
+async function boot({ nodeId = "desktop-off", port = 0, sharedSecret = "", peers = [] as { nodeId: string; url: string }[], supabaseUrl = "https://auth.example.test", supabaseAnonKey = "test-anon-key", authFetcher = async (_url: string | URL, init?: RequestInit) => {
+  const token = String((init?.headers as Record<string, string> | undefined)?.Authorization ?? "").replace(/^Bearer /, "");
+  const ids: Record<string,string> = { "buyer-token": "buyer-admin", "seller-token": "seller-admin", "member-token": "buyer-member", "outsider-token": "outsider" };
+  return new Response(JSON.stringify({ id: ids[token] ?? "unknown-user" }), { status: token === "expired" ? 401 : 200 });
+} } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "export-client-desktop-"));
-  const instance = await startLocalApi({ dbPath: path.join(dir, "db.sqlite"), port, host: "127.0.0.1", nodeId, sharedSecret, peers });
+  const instance = await startLocalApi({ dbPath: path.join(dir, "db.sqlite"), port, host: "127.0.0.1", nodeId, sharedSecret, peers, supabaseUrl, supabaseAnonKey, authFetcher });
   const resource = { ...instance, dir };
   active.push(resource);
   return resource;
@@ -317,4 +322,62 @@ test("peer URL validation rejects public HTTP, credentials, self, and duplicate 
   assert.throws(() => parsePeers("web=https://user:pass@example.com", "desktop-local"), /credentials/);
   assert.throws(() => parsePeers("desktop-local=http://127.0.0.1:4000", "desktop-local"), /invalid|self/);
   assert.throws(() => parsePeers("web=http://127.0.0.1:4000,web=http://127.0.0.1:4001", "desktop-local"), /duplicate/);
+});
+
+
+test("tenant transaction reads and writes are isolated by active membership and role", async () => {
+  const api = await boot();
+  try {
+    migrateTenantIsolation(api.db);
+    const db = api.db;
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO tenants (id,tenant_type,display_name,created_at) VALUES (?,?,?,?)").run("buyer-a","buyer","Buyer A",now);
+    db.prepare("INSERT INTO tenants (id,tenant_type,display_name,created_at) VALUES (?,?,?,?)").run("seller-a","seller","Seller A",now);
+    db.prepare("INSERT INTO tenants (id,tenant_type,display_name,created_at) VALUES (?,?,?,?)").run("buyer-b","buyer","Buyer B",now);
+    const membership = db.prepare("INSERT INTO tenant_memberships (tenant_id,user_id,role,status,created_at) VALUES (?,?,?,'active',?)");
+    membership.run("buyer-a","buyer-admin","buyer_admin",now);
+    membership.run("buyer-a","buyer-member","buyer_member",now);
+    membership.run("seller-a","seller-admin","seller_admin",now);
+    membership.run("buyer-b","outsider","buyer_admin",now);
+
+    const headers = (token: string, tenantId: string) => ({ authorization: `Bearer ${token}`, "x-active-tenant-id": tenantId, "content-type": "application/json" });
+    const noAuth = await fetch(`${api.url}/api/v1/transactions`, { headers: { "x-active-tenant-id": "buyer-a" } });
+    assert.equal(noAuth.status, 401);
+    const noTenant = await fetch(`${api.url}/api/v1/transactions`, { headers: { authorization: "Bearer buyer-token" } });
+    assert.equal(noTenant.status, 400);
+
+    const createdResponse = await fetch(`${api.url}/api/v1/transactions`, {
+      method: "POST", headers: headers("buyer-token","buyer-a"),
+      body: JSON.stringify({ buyerTenantId: "buyer-b", sellerTenantId: "seller-a" }),
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = (await createdResponse.json() as {data:{id:string;buyerTenantId:string}}).data;
+    assert.equal(created.buyerTenantId, "buyer-a");
+
+    const list = await fetch(`${api.url}/api/v1/transactions`, { headers: headers("buyer-token","buyer-a") });
+    assert.equal(((await list.json()) as {data:unknown[]}).data.length, 1);
+    const crossTenantRead = await fetch(`${api.url}/api/v1/transactions/${created.id}`, { headers: headers("outsider-token","buyer-b") });
+    assert.equal(crossTenantRead.status, 404);
+    const forgedTenant = await fetch(`${api.url}/api/v1/transactions`, { headers: headers("outsider-token","buyer-a") });
+    assert.equal(forgedTenant.status, 403);
+
+    const memberWrite = await fetch(`${api.url}/api/v1/transactions/${created.id}/status`, {
+      method: "PATCH", headers: headers("member-token","buyer-a"), body: JSON.stringify({ status: "cancelled" }),
+    });
+    assert.equal(memberWrite.status, 403);
+    const accepted = await fetch(`${api.url}/api/v1/transactions/${created.id}/status`, {
+      method: "PATCH", headers: headers("seller-token","seller-a"), body: JSON.stringify({ status: "accepted" }),
+    });
+    assert.equal(accepted.status, 200);
+    const fulfilled = await fetch(`${api.url}/api/v1/transactions/${created.id}/status`, {
+      method: "PATCH", headers: headers("seller-token","seller-a"), body: JSON.stringify({ status: "fulfilled" }),
+    });
+    assert.equal(fulfilled.status, 200);
+    const terminalWrite = await fetch(`${api.url}/api/v1/transactions/${created.id}/status`, {
+      method: "PATCH", headers: headers("buyer-token","buyer-a"), body: JSON.stringify({ status: "cancelled" }),
+    });
+    assert.equal(terminalWrite.status, 403);
+  } finally {
+    await cleanup(api);
+  }
 });
