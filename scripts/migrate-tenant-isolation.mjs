@@ -34,7 +34,8 @@ export function migrateTenantIsolation(db) {
         CHECK (buyer_tenant_id <> seller_tenant_id)
       );
       CREATE TABLE IF NOT EXISTS tenant_sync_outbox (
-        event_id TEXT PRIMARY KEY,
+        queue_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL UNIQUE,
         peer_node_id TEXT NOT NULL,
         peer_url TEXT NOT NULL,
         event_type TEXT NOT NULL CHECK (event_type IN ('tenant.upsert','membership.upsert','transaction.upsert')),
