@@ -381,3 +381,38 @@ test("tenant transaction reads and writes are isolated by active membership and 
     await cleanup(api);
   }
 });
+
+test("tenant sync endpoint accepts trusted peer bundles and rejects invalid peers", async () => {
+  const secret = "tenant-sync-test-secret-at-least-32-chars";
+  const api = await boot({ sharedSecret: secret, peers: [{ nodeId: "peer-a", url: "http://127.0.0.1:6553" }] });
+  try {
+    migrateTenantIsolation(api.db);
+    const timestamp = new Date().toISOString();
+    const payload = {
+      transaction: { id: "txn-sync-1", buyerTenantId: "buyer-sync", sellerTenantId: "seller-sync", inquiryId: null, status: "pending", createdAt: timestamp },
+      tenants: [
+        { id: "buyer-sync", tenantType: "buyer", displayName: "Buyer Sync", status: "active", createdAt: timestamp },
+        { id: "seller-sync", tenantType: "seller", displayName: "Seller Sync", status: "active", createdAt: timestamp },
+      ],
+      memberships: [
+        { tenantId: "buyer-sync", userId: "buyer-user", role: "buyer_admin", status: "active", createdAt: timestamp },
+        { tenantId: "seller-sync", userId: "seller-user", role: "seller_admin", status: "active", createdAt: timestamp },
+      ],
+    };
+    const body = JSON.stringify({ eventId: "event-sync-1", eventType: "transaction.upsert", payload });
+    const denied = await fetch(api.url + "/api/v1/sync/tenants", {
+      method: "POST", headers: { authorization: "Bearer wrong-secret", "x-sync-peer": "peer-a", "content-type": "application/json" }, body,
+    });
+    assert.equal(denied.status, 401);
+    const applied = await fetch(api.url + "/api/v1/sync/tenants", {
+      method: "POST", headers: { authorization: "Bearer " + secret, "x-sync-peer": "peer-a", "content-type": "application/json" }, body,
+    });
+    assert.equal(applied.status, 200);
+    assert.equal((api.db.prepare("SELECT status FROM commercial_transactions WHERE id='txn-sync-1'").get() as {status:string}).status, "pending");
+    assert.equal((api.db.prepare("SELECT COUNT(*) AS count FROM tenant_memberships WHERE tenant_id IN ('buyer-sync','seller-sync')").get() as {count:number}).count, 2);
+    const unknownPeer = await fetch(api.url + "/api/v1/sync/tenants", {
+      method: "POST", headers: { authorization: "Bearer " + secret, "x-sync-peer": "not-configured", "content-type": "application/json" }, body,
+    });
+    assert.equal(unknownPeer.status, 403);
+  } finally { await cleanup(api); }
+});
