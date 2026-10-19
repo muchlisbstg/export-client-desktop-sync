@@ -33,7 +33,23 @@ export function migrateTenantIsolation(db) {
         created_at TEXT NOT NULL,
         CHECK (buyer_tenant_id <> seller_tenant_id)
       );
-      CREATE INDEX IF NOT EXISTS idx_tenant_memberships_user_status ON tenant_memberships(user_id,status);
+      CREATE TABLE IF NOT EXISTS tenant_sync_outbox (
+        event_id TEXT PRIMARY KEY,
+        peer_node_id TEXT NOT NULL,
+        peer_url TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('tenant.upsert','membership.upsert','transaction.upsert')),
+        aggregate_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+        next_attempt_at_ms INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        delivered_at TEXT,
+        UNIQUE (event_id, peer_node_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_tenant_sync_outbox_due ON tenant_sync_outbox(next_attempt_at_ms) WHERE delivered_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_tenant_sync_outbox_peer ON tenant_sync_outbox(peer_node_id,delivered_at);
+            CREATE INDEX IF NOT EXISTS idx_tenant_memberships_user_status ON tenant_memberships(user_id,status);
       CREATE INDEX IF NOT EXISTS idx_transactions_buyer_status ON commercial_transactions(buyer_tenant_id,status);
       CREATE INDEX IF NOT EXISTS idx_transactions_seller_status ON commercial_transactions(seller_tenant_id,status);
     `);
