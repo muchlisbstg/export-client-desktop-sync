@@ -33,7 +33,7 @@ test("migration is idempotent and creates tenant model tables", () => {
   try {
     assert.doesNotThrow(() => migrateTenantIsolation(db));
     assert.doesNotThrow(() => migrateTenantIsolation(db));
-    for (const table of ["tenants","tenant_memberships","commercial_transactions"]) {
+    for (const table of ["tenants","tenant_memberships","commercial_transactions","tenant_sync_outbox"]) {
       assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table));
     }
   } finally { db.close(); }
@@ -99,5 +99,35 @@ test("migration runs on an isolated representative SQLite backup and leaves sour
     if (copy?.open) copy.close();
     source.close();
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("tenant synchronization outbox persists retryable events across database reopen", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tenant-outbox-"));
+  const file = path.join(directory, "outbox.sqlite");
+  let db = new Database(file);
+  try {
+    db.exec("CREATE TABLE inquiries (id TEXT PRIMARY KEY)");
+    migrateTenantIsolation(db);
+    db.prepare(`INSERT INTO tenant_sync_outbox
+      (event_id,peer_node_id,peer_url,event_type,aggregate_id,payload_json,attempt_count,next_attempt_at_ms,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      "event-1","peer-b","https://peer.example.test","transaction.upsert","txn-1",
+      JSON.stringify({ id: "txn-1", status: "pending" }),2,Date.now()+5000,new Date().toISOString()
+    );
+  } finally { db.close(); }
+  db = new Database(file);
+  try {
+    const event = db.prepare("SELECT event_id,peer_node_id,event_type,aggregate_id,attempt_count,payload_json,delivered_at FROM tenant_sync_outbox WHERE event_id='event-1'").get();
+    assert.equal(event.peer_node_id,"peer-b");
+    assert.equal(event.event_type,"transaction.upsert");
+    assert.equal(event.aggregate_id,"txn-1");
+    assert.equal(event.attempt_count,2);
+    assert.deepEqual(JSON.parse(event.payload_json),{id:"txn-1",status:"pending"});
+    assert.equal(event.delivered_at,null);
+  } finally {
+    db.close();
+    fs.rmSync(directory,{recursive:true,force:true});
   }
 });
