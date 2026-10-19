@@ -270,6 +270,71 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
       syncStatus: { enabled: syncEnabled, peerCount: peers.length, pendingDeliveries, retryingDeliveries, conflicts },
     });
   });
+
+  function tenantSchemaReady(): boolean {
+    const tables = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{name:string}>).map((row) => row.name));
+    if (!["tenants", "tenant_memberships", "commercial_transactions"].every((name) => tables.has(name))) return false;
+    const columns = new Set((db.prepare("PRAGMA table_info(inquiries)").all() as Array<{name:string}>).map((row) => row.name));
+    return ["buyer_tenant_id", "seller_tenant_id", "tenant_migration_state"].every((name) => columns.has(name));
+  }
+  function requireActiveTenant(req: express.Request, res: express.Response, next: express.NextFunction) {
+    if (!tenantSchemaReady()) return res.status(503).json({ error: "tenant_schema_not_ready" });
+    const identity = res.locals.authIdentity as {id:string}|undefined;
+    const tenantId = String(req.header("x-active-tenant-id") ?? "").trim();
+    if (!tenantId) return res.status(400).json({ error: "active_tenant_required" });
+    const membership = db.prepare(`SELECT t.id, t.tenant_type AS tenantType, t.status AS tenantStatus, m.role, m.status AS membershipStatus
+      FROM tenants t JOIN tenant_memberships m ON m.tenant_id=t.id WHERE m.user_id=? AND t.id=?`).get(identity?.id ?? "", tenantId) as
+      {id:string;tenantType:"buyer"|"seller";tenantStatus:string;role:string;membershipStatus:string}|undefined;
+    if (!identity || !membership || membership.tenantStatus !== "active" || membership.membershipStatus !== "active") return res.status(403).json({ error: "tenant_access_denied" });
+    res.locals.activeTenant = membership;
+    return next();
+  }
+  app.get("/api/v1/transactions", auth.authenticate, requireActiveTenant, (_req, res) => {
+    const tenant = res.locals.activeTenant as {id:string};
+    const rows = db.prepare(`SELECT id, buyer_tenant_id AS buyerTenantId, seller_tenant_id AS sellerTenantId, inquiry_id AS inquiryId, status, created_at AS createdAt
+      FROM commercial_transactions WHERE buyer_tenant_id=? OR seller_tenant_id=? ORDER BY created_at DESC LIMIT 100`).all(tenant.id, tenant.id);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ data: rows });
+  });
+  app.get("/api/v1/transactions/:id", auth.authenticate, requireActiveTenant, (req, res) => {
+    const tenant = res.locals.activeTenant as {id:string};
+    const row = db.prepare(`SELECT id, buyer_tenant_id AS buyerTenantId, seller_tenant_id AS sellerTenantId, inquiry_id AS inquiryId, status, created_at AS createdAt
+      FROM commercial_transactions WHERE id=? AND (buyer_tenant_id=? OR seller_tenant_id=?)`).get(req.params.id, tenant.id, tenant.id);
+    res.setHeader("Cache-Control", "no-store");
+    if (!row) return res.status(404).json({ error: "transaction_not_found" });
+    return res.json({ data: row });
+  });
+  app.post("/api/v1/transactions", auth.authenticate, requireActiveTenant, (req, res) => {
+    const tenant = res.locals.activeTenant as {id:string;tenantType:string;role:string};
+    const sellerTenantId = typeof req.body?.sellerTenantId === "string" ? req.body.sellerTenantId.trim() : "";
+    if (tenant.tenantType !== "buyer" || tenant.role !== "buyer_admin") return res.status(403).json({ error: "buyer_admin_required" });
+    if (!sellerTenantId || sellerTenantId === tenant.id) return res.status(400).json({ error: "invalid_seller_tenant" });
+    const seller = db.prepare("SELECT id FROM tenants WHERE id=? AND tenant_type='seller' AND status='active'").get(sellerTenantId);
+    if (!seller) return res.status(404).json({ error: "seller_tenant_not_found" });
+    const id = randomUUID();
+    const createdAt = new Date().toISOString();
+    db.prepare("INSERT INTO commercial_transactions (id,buyer_tenant_id,seller_tenant_id,status,created_at) VALUES (?,?,?,'pending',?)").run(id, tenant.id, sellerTenantId, createdAt);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(201).json({ data: { id, buyerTenantId: tenant.id, sellerTenantId, status: "pending", createdAt } });
+  });
+  app.patch("/api/v1/transactions/:id/status", auth.authenticate, requireActiveTenant, (req, res) => {
+    const tenant = res.locals.activeTenant as {id:string;tenantType:string;role:string};
+    const nextStatus = req.body?.status;
+    const row = db.prepare("SELECT id,buyer_tenant_id AS buyerTenantId,seller_tenant_id AS sellerTenantId,status FROM commercial_transactions WHERE id=? AND (buyer_tenant_id=? OR seller_tenant_id=?)").get(req.params.id, tenant.id, tenant.id) as
+      {id:string;buyerTenantId:string;sellerTenantId:string;status:string}|undefined;
+    if (!row) return res.status(404).json({ error: "transaction_not_found" });
+    const sellerAction = tenant.tenantType === "seller" && tenant.role === "seller_admin" && ["accepted","fulfilled"].includes(nextStatus);
+    const buyerAction = tenant.tenantType === "buyer" && tenant.role === "buyer_admin" && ["cancelled","disputed"].includes(nextStatus);
+    const validTransition = (nextStatus === "accepted" && row.status === "pending" && sellerAction)
+      || (nextStatus === "fulfilled" && row.status === "accepted" && sellerAction)
+      || ((nextStatus === "cancelled" || nextStatus === "disputed") && ["pending","accepted"].includes(row.status) && buyerAction);
+    if (!validTransition) return res.status(403).json({ error: "transaction_transition_denied" });
+    const changed = db.prepare("UPDATE commercial_transactions SET status=? WHERE id=? AND status=?").run(nextStatus, row.id, row.status);
+    if (changed.changes !== 1) return res.status(409).json({ error: "transaction_state_conflict" });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ data: { id: row.id, status: nextStatus } });
+  });
+
   app.get("/api/v1/products", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({ data: db.prepare("SELECT id,name,category,origin,unit FROM products WHERE active = 1 ORDER BY name").all() });
