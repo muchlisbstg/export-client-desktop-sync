@@ -59,6 +59,12 @@ export function migrateTenantIsolation(db) {
     if (!columns.has("tenant_migration_state")) db.exec("ALTER TABLE inquiries ADD COLUMN tenant_migration_state TEXT NOT NULL DEFAULT 'unassigned' CHECK (tenant_migration_state IN ('unassigned','reviewed','assigned'))");
     db.exec("CREATE INDEX IF NOT EXISTS idx_inquiries_buyer_tenant ON inquiries(buyer_tenant_id)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_inquiries_seller_tenant ON inquiries(seller_tenant_id)");
+    const outboxColumns = new Set(db.prepare("PRAGMA table_info(tenant_sync_outbox)").all().map((column) => column.name));
+    if (!outboxColumns.has("queue_seq")) {
+      db.exec("ALTER TABLE tenant_sync_outbox ADD COLUMN queue_seq INTEGER");
+      db.exec("UPDATE tenant_sync_outbox SET queue_seq = rowid WHERE queue_seq IS NULL");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_sync_outbox_queue_seq ON tenant_sync_outbox(queue_seq)");
+    }
   })();
   return { applied: true, legacyRowsRemainUnassigned: true };
 }
