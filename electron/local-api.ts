@@ -317,7 +317,7 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
     if (tenantOutboxFlushing || !secret || !tenantSchemaReady()) return;
     tenantOutboxFlushing=true;
     try {
-      const due=db.prepare("SELECT event_id AS eventId,peer_node_id AS peerNodeId,peer_url AS peerUrl,payload_json AS payloadJson,attempt_count AS attemptCount FROM tenant_sync_outbox WHERE delivered_at IS NULL AND next_attempt_at_ms<=? ORDER BY created_at LIMIT 20").all(Date.now()) as Array<{eventId:string;peerNodeId:string;peerUrl:string;payloadJson:string;attemptCount:number}>;
+      const due=db.prepare("SELECT event_id AS eventId,peer_node_id AS peerNodeId,peer_url AS peerUrl,payload_json AS payloadJson,attempt_count AS attemptCount FROM tenant_sync_outbox WHERE delivered_at IS NULL AND next_attempt_at_ms<=? AND NOT EXISTS (SELECT 1 FROM tenant_sync_outbox older WHERE older.peer_node_id=tenant_sync_outbox.peer_node_id AND older.aggregate_id=tenant_sync_outbox.aggregate_id AND older.delivered_at IS NULL AND older.queue_seq<tenant_sync_outbox.queue_seq) ORDER BY queue_seq LIMIT 20").all(Date.now()) as Array<{eventId:string;peerNodeId:string;peerUrl:string;payloadJson:string;attemptCount:number}>;
       for (const item of due) {
         try {
           const result=await fetcher(`${item.peerUrl}/api/v1/sync/tenants`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${secret}`,"x-sync-peer":nodeId},body:JSON.stringify({eventId:item.eventId,eventType:"transaction.upsert",payload:JSON.parse(item.payloadJson)}),signal:AbortSignal.timeout(5000)});
