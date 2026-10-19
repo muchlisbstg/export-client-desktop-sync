@@ -87,3 +87,20 @@ test("identity provider outage fails closed with service unavailable", async () 
     await app.close();
   }
 });
+
+test("malformed identity responses are rejected rather than creating an authenticated session", async () => {
+  const app = await startApp({
+    url: "https://auth.example.test",
+    anonKey: "public-test-key",
+    fetcher: async () => new Response(JSON.stringify({ id: "   " }), { status: 200 }),
+  });
+  try {
+    const response = await fetch(`${app.url}/session`, {
+      headers: { Authorization: "Bearer malformed-identity-token" },
+    });
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: "invalid_identity" });
+  } finally {
+    await app.close();
+  }
+});
