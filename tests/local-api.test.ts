@@ -22,7 +22,7 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function boot({ nodeId = "desktop-off", port = 0, sharedSecret = "", peers = [] as { nodeId: string; url: string }[], supabaseUrl = "https://auth.example.test", supabaseAnonKey = "test-anon-key", authFetcher = async (_url: string | URL, init?: RequestInit) => {
+async function boot({ nodeId = "desktop-off", port = 0, sharedSecret = "", peers = [] as { nodeId: string; url: string }[], supabaseUrl = "https://auth.example.test", supabaseAnonKey = "test-anon-key", authFetcher = async (_url: string | URL | Request, init?: RequestInit) => {
   const token = String((init?.headers as Record<string, string> | undefined)?.Authorization ?? "").replace(/^Bearer /, "");
   const ids: Record<string,string> = { "buyer-token": "buyer-admin", "seller-token": "seller-admin", "member-token": "buyer-member", "outsider-token": "outsider" };
   return new Response(JSON.stringify({ id: ids[token] ?? "unknown-user" }), { status: token === "expired" ? 401 : 200 });
