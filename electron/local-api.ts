@@ -214,7 +214,7 @@ export function createLocalApi(options: LocalApiOptions): { app: Express; close:
         try {
           const response = await fetcher(`${item.peerUrl}/api/v1/sync/inquiries`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}`, "x-sync-peer": nodeId },
             body: JSON.stringify(record),
             signal: AbortSignal.timeout(5_000),
           });
